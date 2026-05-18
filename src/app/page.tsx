@@ -26,7 +26,7 @@ export default function CustomerPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // 核心安全鎖，根除 Hydration Mismatch 報錯
+  // 🧠 核心解鎖：將安全鎖回歸單純的網頁掛載監聽
   const [isMounted, setIsMounted] = useState(false);
 
   // 訪客模式下的手動過濾控制
@@ -218,7 +218,7 @@ export default function CustomerPage() {
     }
   };
 
-  // 手機版左右滑動校準索引與導引點位置
+  // 智慧監聽：手機版左右滑動校準小圓點
   const handleMobileScroll = () => {
     if (mobileContainerRef.current) {
       const { scrollLeft, clientWidth } = mobileContainerRef.current;
@@ -230,6 +230,37 @@ export default function CustomerPage() {
       }
     }
   };
+
+  // 點擊搜尋或狀態篩選變更時，自動校準手機滾動錨點回到最左側
+  useEffect(() => {
+    setCurrentMobileIndex(0);
+    if (mobileContainerRef.current) {
+      mobileContainerRef.current.scrollTo({ left: 0 });
+    }
+  }, [searchTerm, showArchived]);
+
+  // 🧠 核心修正 A：單獨建立一個最純粹的掛載 useEffect，一載入網頁就立刻翻轉為 true
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    const checkAuthAndFetch = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      updateAuthState(session);
+      supabase.auth.onAuthStateChange((_event, session) => { updateAuthState(session); });
+      await fetchCustomers();
+      await fetchLogs();
+    };
+    checkAuthAndFetch();
+
+    const activityEvents = ['mousemove', 'keydown', 'click', 'scroll'];
+    activityEvents.forEach(event => { window.addEventListener(event, resetIdleTimeout); });
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      activityEvents.forEach(event => { window.removeEventListener(event, resetIdleTimeout); });
+    };
+  }, [isAdmin]);
 
   const fetchCustomers = async () => {
     try {
@@ -291,7 +322,7 @@ export default function CustomerPage() {
       email: customer.email || '', 
       address: customer.address || '', 
       notes: customer.notes || '',
-      status: customer.status || '在職',
+      status: customer.status || 'InService',
       mobile: customer.mobile || ''
     });
 
@@ -387,20 +418,13 @@ export default function CustomerPage() {
     return matchesSearch;
   });
 
-  // 🧠 核心防跑版修正 A：只要關鍵字一發生變動，強制重置小圓點索引，並將手機滑動器強制復位到最左側（第 1 筆）
-  useEffect(() => {
-    setCurrentMobileIndex(0);
-    if (mobileContainerRef.current) {
-      mobileContainerRef.current.scrollTo({ left: 0 });
-    }
-  }, [searchTerm, showArchived]);
-
   const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE) || 1;
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const paginatedCustomers = filteredCustomers.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
+  // 🧠 核心修正 B：如果還沒掛載，直接返回，這時 Next.js 在伺服器端渲染空狀態
   if (!isMounted) {
-    return <div className="min-h-screen bg-slate-50 text-slate-500 flex items-center justify-center text-sm">系統初始化安全驗證中...</div>;
+    return <div className="min-h-screen bg-slate-50 text-slate-500 flex items-center justify-center text-sm font-mono tracking-wider">SYSTEM INITIALIZING...</div>;
   }
 
   return (
@@ -451,6 +475,7 @@ export default function CustomerPage() {
           )}
         </div>
 
+        {/* 列表內容與分頁 */}
         {loading ? (
           <div className="text-center py-12 text-slate-600 font-bold font-mono">資料載入中...</div>
         ) : filteredCustomers.length === 0 ? (
@@ -496,10 +521,10 @@ export default function CustomerPage() {
                               <div className="text-xs text-slate-600 font-semibold mt-0.5">{customer.title || '--'}</div>
                             </td>
                             <td className="p-4 text-blue-700 font-mono font-bold tracking-wide">
-                              {!isLeft && customer.mobile ? <a href={`tel:${customer.mobile}`} className="hover:text-blue-600 hover:underline transition-colors">{formatMobileDisplay(customer.mobile)}</a> : <span className="text-gray-400">{formatMobileDisplay(customer.mobile)}</span>}
+                              {!isLeft && customer.mobile ? <a href={`tel:${customer.mobile}`} className="hover:text-blue-500 hover:underline transition-colors">{formatMobileDisplay(customer.mobile)}</a> : <span className="text-slate-400">{formatMobileDisplay(customer.mobile)}</span>}
                             </td>
                             <td className="p-4 text-slate-900 font-mono font-medium">
-                              {!isLeft && customer.phone ? <a href={`tel:${customer.phone}`} className="text-blue-700 hover:text-blue-600 hover:underline transition-colors">{formatPhoneDisplay(customer.phone)}{customer.extension ? ` #${customer.extension}` : ''}</a> : <span className="text-gray-400">{formatPhoneDisplay(customer.phone) || '--'}</span>}
+                              {!isLeft && customer.phone ? <a href={`tel:${customer.phone}`} className="text-blue-700 hover:text-blue-600 hover:underline transition-colors">{formatPhoneDisplay(customer.phone)}{customer.extension ? ` #${customer.extension}` : ''}</a> : <span className="text-slate-400">{formatPhoneDisplay(customer.phone) || '--'}</span>}
                             </td>
                             <td className="p-4 font-mono font-semibold">
                               {!isLeft && customer.line_id ? <button onClick={() => setActiveLineId(customer.line_id)} className="text-emerald-700 hover:text-emerald-600 hover:underline flex items-center gap-1 font-bold transition-colors"><span>{customer.line_id}</span><span className="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-1.5 py-0.2 rounded font-bold">QR</span></button> : <span className="text-slate-400">{customer.line_id || '--'}</span>}
@@ -507,7 +532,7 @@ export default function CustomerPage() {
                             {isAdmin && (
                               <td className="p-4 text-center space-x-2 whitespace-nowrap text-xs font-bold">
                                 <button onClick={() => handleOpenEditModal(customer)} className="text-amber-700 hover:text-amber-600 transition-colors">編輯</button>
-                                <span className="text-slate-300">|</span>
+                                <span className="text-slate-400">|</span>
                                 <button onClick={() => handleDeleteCustomer(customer.id, customer.contact_name, customer.company_name)} className="text-red-600 hover:text-red-400 transition-colors">刪除</button>
                               </td>
                             )}
@@ -520,7 +545,7 @@ export default function CustomerPage() {
                                     <h4 className="text-[11px] font-bold tracking-wider text-slate-400 uppercase border-b border-slate-300 pb-1">詳細聯絡資訊</h4>
                                     <div><span className="text-slate-500 font-bold mr-2">電子郵件:</span>{customer.email ? <a href={`mailto:${customer.email}`} className="text-blue-700 font-bold hover:underline">{customer.email}</a> : <span className="text-slate-400">未提供</span>}</div>
                                     <div><span className="text-slate-500 font-bold mr-2">公司地址:</span>{customer.address ? (
-                                      <a href={`http://maps.google.com/?q=${encodeURIComponent(customer.address.split(/[\s\(\（]/)[0])}`} target="_blank" rel="noopener noreferrer" className="text-blue-700 font-bold hover:underline inline-flex items-center gap-1">
+                                      <a href={`http://maps.google.com/?q=${encodeURIComponent(customer.address.split(/[\s\(\停]/)[0])}`} target="_blank" rel="noopener noreferrer" className="text-blue-700 font-bold hover:underline inline-flex items-center gap-1">
                                         {customer.address}
                                         <span className="text-[10px] bg-purple-100 text-purple-800 border border-purple-300 px-1 rounded font-bold">地圖</span>
                                       </a>
@@ -541,7 +566,7 @@ export default function CustomerPage() {
                 </table>
               </div>
 
-              {/* 電腦端分頁列 */}
+              {/* 分頁按鈕列 */}
               <div className="bg-slate-50 border-t border-slate-200 px-4 py-3.5 flex items-center justify-between text-slate-700 font-mono text-xs select-none">
                 <div>
                   顯示第 <span className="font-bold text-slate-900">{filteredCustomers.length === 0 ? 0 : startIndex + 1}</span> 至 <span className="font-bold text-slate-900">{Math.min(startIndex + ITEMS_PER_PAGE, filteredCustomers.length)}</span> 筆，共 <span className="font-bold text-slate-900">{filteredCustomers.length}</span> 筆客戶資料
@@ -561,7 +586,6 @@ export default function CustomerPage() {
               <div 
                 ref={mobileContainerRef}
                 onScroll={handleMobileScroll}
-                // 🧠 核心防跑版修正 B：外層容器加裝 w-full flex flex-row flex-nowrap，完全杜絕卡片縮水
                 className="flex flex-row flex-nowrap overflow-x-auto snap-x snap-mandatory scrollbar-none w-full pb-2 touch-pan-x"
                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
               >
@@ -619,7 +643,7 @@ export default function CustomerPage() {
                 })}
               </div>
 
-              {/* 🧠 核心防跑版修正 C：小圓點地圖必須依據過濾後的長度「filteredCustomers」動態跑渲染，絕不取全量數據 */}
+              {/* 手機點引導點 */}
               <div className="flex justify-center items-center gap-1.5 mt-2 flex-wrap max-w-full px-4">
                 {filteredCustomers.map((_, idx) => (
                   <span 
@@ -636,7 +660,7 @@ export default function CustomerPage() {
         )}
       </div>
 
-      {/* 中央彈出視窗 (Modal) */}
+      {/* 變更密碼/日誌/LINE 彈出視窗保持原樣 */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
           <div className="w-full max-w-2xl bg-white border border-slate-300 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 text-black font-semibold">
@@ -645,7 +669,6 @@ export default function CustomerPage() {
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-700 transition-colors text-xl">✕</button>
             </div>
             <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-4 max-h-[80vh] overflow-y-auto">
-              
               {!editingCustomerId && (
                 <div className="bg-slate-50 border border-dashed border-slate-400 rounded-xl p-3 md:p-4 space-y-2">
                   <div className="text-xs font-bold text-blue-700 tracking-wider">⚡ 管理員電子名片快捷匯入</div>
@@ -656,7 +679,7 @@ export default function CustomerPage() {
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="md:col-span-2"><label className="block text-xs font-bold text-slate-600 mb-1">Company *</label><input type="text" name="company_name" required value={formData.company_name} onChange={handleInputChange} placeholder="e.g. TSMC" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 font-bold focus:outline-none text-sm focus:ring-2 focus:ring-blue-600" /></div>
+                <div className="md:col-span-2"><label className="block text-xs font-bold text-slate-600 mb-1">Company *</label><input type="text" name="company_name" required value={formData.company_name} onChange={handleInputChange} placeholder="e.g. TSMC" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-sm focus:ring-2 focus:ring-blue-600" /></div>
                 <div><label className="block text-xs font-bold text-slate-600 mb-1">Facility</label><input type="text" name="facility_name" value={formData.facility_name || ''} onChange={handleInputChange} placeholder="e.g. 中科廠" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-sm focus:ring-2 focus:ring-blue-600" /></div>
                 <div><label className="block text-xs font-bold text-slate-600 mb-1">Floor</label><input type="text" name="facility_floor" value={formData.facility_floor || ''} onChange={handleInputChange} placeholder="e.g. 3" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-sm focus:ring-2 focus:ring-blue-600" /></div>
               </div>
@@ -706,7 +729,6 @@ export default function CustomerPage() {
         </div>
       )}
 
-      {/* LINE QR Code */}
       {activeLineId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
           <div className="w-full max-w-xs bg-white border border-slate-200 rounded-xl p-6 text-center shadow-2xl font-bold text-black">
@@ -721,7 +743,6 @@ export default function CustomerPage() {
         </div>
       )}
 
-      {/* 📊 最近變更紀錄智慧抽屜籤 */}
       <div ref={logPanelRef} className="fixed bottom-4 right-4 z-40 flex flex-col items-end font-sans font-bold">
         {isLogPanelOpen ? (
           <div className="w-80 bg-white border border-slate-300 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 text-slate-900">
@@ -764,7 +785,6 @@ export default function CustomerPage() {
         )}
       </div>
 
-      {/* 修改密碼彈出視窗 */}
       {isPwdModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
           <div className="w-full max-w-sm bg-white border border-slate-300 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 text-black font-bold">
