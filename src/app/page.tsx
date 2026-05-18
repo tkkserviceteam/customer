@@ -218,7 +218,7 @@ export default function CustomerPage() {
     }
   };
 
-  // 手機版左右滑動校準索引
+  // 智慧監聽：手機版左右滑動校準索引
   const handleMobileScroll = () => {
     if (mobileContainerRef.current) {
       const { scrollLeft, clientWidth } = mobileContainerRef.current;
@@ -230,6 +230,33 @@ export default function CustomerPage() {
       }
     }
   };
+
+  // 智慧校準：關鍵字變更時，強制將滑動容器拉回第 0 頁
+  useEffect(() => {
+    setCurrentMobileIndex(0);
+    if (mobileContainerRef.current) {
+      mobileContainerRef.current.scrollTo({ left: 0 });
+    }
+  }, [searchTerm, showArchived]);
+
+  useEffect(() => {
+    const checkAuthAndFetch = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      updateAuthState(session);
+      supabase.auth.onAuthStateChange((_event, session) => { updateAuthState(session); });
+      await fetchCustomers();
+      await fetchLogs();
+      setIsMounted(true);
+    };
+    checkAuthAndFetch();
+
+    const activityEvents = ['mousemove', 'keydown', 'click', 'scroll'];
+    activityEvents.forEach(event => { window.addEventListener(event, resetIdleTimeout); });
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      activityEvents.forEach(event => { window.removeEventListener(event, resetIdleTimeout); });
+    };
+  }, [isAdmin]);
 
   const fetchCustomers = async () => {
     try {
@@ -387,14 +414,6 @@ export default function CustomerPage() {
     return matchesSearch;
   });
 
-  // 智慧校準：關鍵字變更時，強制將滑動容器拉回第 0 頁
-  useEffect(() => {
-    setCurrentMobileIndex(0);
-    if (mobileContainerRef.current) {
-      mobileContainerRef.current.scrollTo({ left: 0 });
-    }
-  }, [searchTerm, showArchived]);
-
   const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE) || 1;
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const paginatedCustomers = filteredCustomers.slice(startIndex, startIndex + ITEMS_PER_PAGE);
@@ -526,22 +545,23 @@ export default function CustomerPage() {
                                           <span className="text-[10px] bg-purple-100 text-purple-800 border border-purple-300 px-1 rounded font-bold">地圖</span>
                                         </a>
                                       ) : <span className="text-slate-400">未提供</span>}</div>
+                                    </div>
+                                    <div className="space-y-2">
+                                      <h4 className="text-[11px] font-bold tracking-wider text-slate-400 uppercase border-b border-slate-300 pb-1">備註說明</h4>
+                                      <div className="bg-white p-3 rounded-lg border border-slate-300 text-slate-900 font-mono text-xs shadow-2xs leading-relaxed font-medium">{customer.notes || '暫無額外備註說明資訊。'}</div>
+                                    </div>
                                   </div>
-                                  <div className="space-y-2">
-                                    <h4 className="text-[11px] font-bold tracking-wider text-slate-400 uppercase border-b border-slate-300 pb-1">備註說明</h4>
-                                    <div className="bg-white p-3 rounded-lg border border-slate-300 text-slate-900 font-mono text-xs shadow-2xs leading-relaxed font-medium">{customer.notes || '暫無額外備註說明資訊。'}</div>
-                                  </div>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                                </td>
+                              </tr>
+                            )}
+                          </>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
 
             {/* 電腦端分頁列 */}
             {filteredCustomers.length > 0 && (
@@ -560,7 +580,6 @@ export default function CustomerPage() {
             )}
 
             {/* 2. Mobile View */}
-            {/* 🧠 🧠 核心重大防塌陷結構：無論是否查到資料，外殼容器「永遠維持 100% 滿版渲染」，絕對不銷毀、不縮水 */}
             <div className="block md:hidden relative w-full overflow-hidden">
               <div 
                 ref={mobileContainerRef}
@@ -569,7 +588,6 @@ export default function CustomerPage() {
                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
               >
                 {filteredCustomers.length === 0 ? (
-                  // 🧠 當無資料時，由大卡軌道內部優雅遞出一張 100% 滿版的「無資料對齊卡」，徹底解決空字跑版
                   <div className="bg-white border border-slate-300 rounded-xl p-12 text-center text-slate-500 font-bold w-full max-w-full snap-start snap-always shrink-0 shadow-2xs">
                     <div className="text-2xl mb-2">🔍</div>
                     <div>找不到客戶資料</div>
@@ -621,7 +639,7 @@ export default function CustomerPage() {
                           {!isLeft && customer.phone ? <a href={`tel:${customer.phone}`} className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-center py-2 rounded-lg shadow-2xs"><span>總機分機</span></a> : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無總機</div>}
                           {!isLeft && customer.line_id ? <button onClick={() => setActiveLineId(customer.line_id)} className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-center py-2 rounded-lg shadow-2xs"><span>LINE</span></button> : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無 LINE</div>}
                           {customer.address ? (
-                            <a href={`http://maps.google.com/?q=${encodeURIComponent(customer.address.split(/[\s\(\環境]/)[0])}`} target="_blank" rel="noopener noreferrer" className="bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-300 text-center py-2 rounded-lg shadow-2xs"><span>導航</span></a>
+                            <a href={`http://maps.google.com/?q=${encodeURIComponent(customer.address.split(/[\s\(\環境]/)[0])}`} target="_blank" rel="noopener noreferrer" className="bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-300 text-purple-200 rounded-lg shadow-2xs text-center py-2"><span>導航</span></a>
                           ) : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無地址</div>}
                         </div>
                       </div>
@@ -630,10 +648,10 @@ export default function CustomerPage() {
                 )}
               </div>
 
-              {/* 手機版分頁小圓點導引 (只在有資料時顯示) */}
+              {/* 手機版分頁小圓點導引 */}
               {filteredCustomers.length > 0 && (
-                <>
-                  <div className="flex justify-center items-center gap-1.5 mt-2 flex-wrap max-w-full px-4">
+                <div className="flex flex-col items-center justify-center mt-2 select-none">
+                  <div className="flex justify-center items-center gap-1.5 flex-wrap max-w-full px-4">
                     {filteredCustomers.map((_, idx) => (
                       <span 
                         key={idx}
@@ -644,7 +662,7 @@ export default function CustomerPage() {
                   <div className="text-center text-[10px] text-slate-500 font-mono font-bold mt-1">
                     ◀ 左右滑動切換聯絡人 (目前: {currentMobileIndex + 1} / {filteredCustomers.length}) ▶
                   </div>
-                </>
+                </div>
               )}
             </div>
           </>
@@ -734,6 +752,49 @@ export default function CustomerPage() {
           </div>
         </div>
       )}
+
+      {/* 📊 最近變更紀錄智慧抽屜籤 */}
+      <div ref={logPanelRef} className="fixed bottom-4 right-4 z-40 flex flex-col items-end font-sans font-bold">
+        {isLogPanelOpen ? (
+          <div className="w-80 bg-white border border-slate-300 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 text-slate-900">
+            <div className="bg-slate-100 px-4 py-2.5 border-b border-slate-300 flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-800 tracking-wider">📊 最近變更紀錄</span>
+              <button onClick={() => setIsLogPanelOpen(false)} className="text-slate-500 hover:text-black text-xs font-bold p-1">✕</button>
+            </div>
+            <div className="p-4 space-y-4 max-h-64 overflow-y-auto text-xs">
+              {logs.length === 0 ? (
+                <div className="text-center py-6 text-slate-500 tracking-wider font-bold">暫無變更紀錄</div>
+              ) : (
+                <div className="relative border-l border-slate-200 space-y-4 pl-3.5 ml-1">
+                  {logs.map((log) => (
+                    <div key={log.id} className="relative group">
+                      <span className="absolute -left-[19.5px] top-1.5 w-1.5 h-1.5 rounded-full bg-slate-400 group-hover:bg-blue-600 transition-colors"></span>
+                      <div className="flex items-center gap-1.5 text-slate-500 text-[11px] font-semibold">
+                        <span className="text-slate-600">{new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span>|</span>
+                        <span className="font-bold text-slate-900 truncate max-w-[160px]" title={log.customer_name}>{log.customer_name}</span>
+                      </div>
+                      <p className="text-slate-800 text-[11px] mt-0.5 leading-relaxed break-all font-bold">[{log.action_type}] {log.details}</p>
+                      <div className="text-[10px] text-slate-500 text-right mt-0.5 font-medium">User: {log.operator}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setIsLogPanelOpen(true)}
+            className="px-4 h-10 bg-white hover:bg-slate-100 text-slate-900 border border-slate-400 rounded-full flex items-center gap-2 shadow-md transition-all hover:scale-102 active:scale-98 text-xs font-bold select-none group relative tracking-wider"
+          >
+            <span>📊</span>
+            <span>最近變更紀錄</span>
+            {logs.length > 0 && (
+              <span className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-pulse"></span>
+            )}
+          </button>
+        )}
+      </div>
 
       {/* 修改密碼彈出視窗 */}
       {isPwdModalOpen && (
