@@ -15,11 +15,19 @@ interface CustomerLog {
   created_at: string;
 }
 
+interface ExtendedInsertInput extends InsertCustomerInput {
+  status: '在職' | '離職';
+  mobile: string;
+}
+
 export default function CustomerPage() {
   const router = useRouter();
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+
+  // 訪客模式下的手動過濾控制（預設不顯示離職，手動勾選才看得到）
+  const [showArchived, setShowArchived] = useState(false);
 
   // 管理員狀態
   const [isAdmin, setIsAdmin] = useState(false);
@@ -37,10 +45,11 @@ export default function CustomerPage() {
   const [activeLineId, setActiveLineId] = useState<string | null>(null);
 
   // 表單資料狀態
-  const [formData, setFormData] = useState<InsertCustomerInput>({
+  const [formData, setFormData] = useState<ExtendedInsertInput>({
     company_name: '', facility_name: '', facility_floor: '',
     contact_name: '', title: '', phone: '', extension: '',
     line_id: '', email: '', address: '', notes: '',
+    status: '在職', mobile: ''
   });
 
   // 地址下拉狀態
@@ -66,24 +75,26 @@ export default function CustomerPage() {
       const text = event.target?.result as string;
       if (!text) return;
 
-      // 使用 Regex 擷取 VCard 標準欄位
       const orgMatch = text.match(/ORG:(.*?)(?:\r?\n|;)/);
       const fnMatch = text.match(/FN:(.*?)(?:\r?\n|;)/);
-      const telMatch = text.match(/TEL(?:;.*?):(.*)/);
       const emailMatch = text.match(/EMAIL(?:;.*?):(.*)/);
       const titleMatch = text.match(/TITLE:(.*?)(?:\r?\n|;)/);
+
+      const mobileMatch = text.match(/TEL;[^:\n]*?CELL[^:\n]*?:([\d\- ]+)/i) || text.match(/TEL;[^:\n]*?TYPE=cell[^:\n]*?:([\d\- ]+)/i);
+      const phoneMatch = text.match(/TEL;[^:\n]*?WORK[^:\n]*?:([\d\- ]+)/i) || text.match(/TEL;[^:\n]*?TYPE=work[^:\n]*?:([\d\- ]+)/i) || text.match(/TEL:(.*?)(?:\r?\n)/);
 
       setFormData((prev) => ({
         ...prev,
         company_name: orgMatch ? orgMatch[1].trim() : prev.company_name,
         contact_name: fnMatch ? fnMatch[1].trim() : prev.contact_name,
-        phone: telMatch ? telMatch[1].trim().replace(/[- ]/g, '') : prev.phone,
+        mobile: mobileMatch ? mobileMatch[1].trim().replace(/[- ]/g, '') : prev.mobile,
+        phone: phoneMatch ? phoneMatch[1].trim().replace(/[- ]/g, '') : prev.phone,
         email: emailMatch ? emailMatch[1].trim() : prev.email,
         title: titleMatch ? titleMatch[1].trim() : prev.title,
+        status: '在職'
       }));
 
       alert('vCard (.vcf) 電子名片解析完成！資訊已自動歸格。');
-      // 清空 input 讓同一個檔案可以重複觸發變更測試
       e.target.value = '';
     };
     reader.readAsText(file);
@@ -174,21 +185,35 @@ export default function CustomerPage() {
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleOpenCreateModal = () => {
     setEditingCustomerId(null);
-    setFormData({ company_name: '', facility_name: '', facility_floor: '', contact_name: '', title: '', phone: '', extension: '', line_id: '', email: '', address: '', notes: '' });
+    setFormData({ company_name: '', facility_name: '', facility_floor: '', contact_name: '', title: '', phone: '', extension: '', line_id: '', email: '', address: '', notes: '', status: '在職', mobile: '' });
     setCity(''); setDist(''); setDetailAddress('');
     setIsModalOpen(true);
   };
 
-  const handleOpenEditModal = (customer: Customer) => {
+  const handleOpenEditModal = (customer: any) => {
     setEditingCustomerId(customer.id);
-    setFormData({ company_name: customer.company_name, facility_name: customer.facility_name || '', facility_floor: customer.facility_floor || '', contact_name: customer.contact_name, title: customer.title || '', phone: customer.phone || '', extension: customer.extension || '', line_id: customer.line_id || '', email: customer.email || '', address: customer.address || '', notes: customer.notes || '' });
+    setFormData({ 
+      company_name: customer.company_name, 
+      facility_name: customer.facility_name || '', 
+      facility_floor: customer.facility_floor || '', 
+      contact_name: customer.contact_name, 
+      title: customer.title || '', 
+      phone: customer.phone || '', 
+      extension: customer.extension || '', 
+      line_id: customer.line_id || '', 
+      email: customer.email || '', 
+      address: customer.address || '', 
+      notes: customer.notes || '',
+      status: customer.status || '在職',
+      mobile: customer.mobile || ''
+    });
 
     let foundCity = ''; let foundDist = ''; let foundDetail = customer.address || '';
     if (customer.address) {
@@ -210,12 +235,12 @@ export default function CustomerPage() {
   };
 
   const handleDeleteCustomer = async (id: string, name: string, company: string) => {
-    if (!confirm(`確定要刪除客戶「${name}」的通訊資料嗎？`)) return;
+    if (!confirm(`確定要將客戶「${name}」的通訊資料徹底從資料庫中刪除嗎？`)) return;
     try {
       const { error } = await supabase.from('customers').delete().eq('id', id);
       if (error) throw error;
       alert('資料已成功刪除！');
-      await writeLog('刪除', company, `移除了聯絡窗口: ${name}`);
+      await writeLog('刪除', company, `移成了聯絡窗口: ${name}`);
       fetchCustomers();
     } catch (error) {
       alert('刪除失敗，權限被拒絕。');
@@ -234,12 +259,12 @@ export default function CustomerPage() {
         const { error } = await supabase.from('customers').update(cleanedData).eq('id', editingCustomerId);
         if (error) throw error;
         alert('客戶資料更新成功！');
-        await writeLog('編輯', formData.company_name, `修改了 ${formData.contact_name}${formData.title ? ` (${formData.title})` : ''} 的聯絡資料`);
+        await writeLog('編輯', formData.company_name, `修改了 ${formData.contact_name} 的資料`);
       } else {
         const { error } = await supabase.from('customers').insert([cleanedData]);
         if (error) throw error;
         alert('客戶資料新增成功！');
-        await writeLog('新增', formData.company_name, `建立了新窗口: ${formData.contact_name}${formData.title ? ` (${formData.title})` : ''}`);
+        await writeLog('新增', formData.company_name, `建立了新窗口: ${formData.contact_name}`);
       }
       setIsModalOpen(false);
       fetchCustomers();
@@ -250,9 +275,28 @@ export default function CustomerPage() {
     }
   };
 
+  // 🧠 重新校準：完全符合你需求的權限分流快篩過濾器
   const filteredCustomers = customers.filter((customer) => {
     const search = searchTerm.toLowerCase();
-    return customer.company_name?.toLowerCase().includes(search) || customer.facility_name?.toLowerCase().includes(search) || customer.contact_name?.toLowerCase().includes(search) || customer.title?.toLowerCase().includes(search) || customer.address?.toLowerCase().includes(search);
+    
+    const matchesSearch = (
+      customer.company_name?.toLowerCase().includes(search) ||
+      customer.facility_name?.toLowerCase().includes(search) ||
+      customer.contact_name?.toLowerCase().includes(search) ||
+      customer.title?.toLowerCase().includes(search) ||
+      customer.address?.toLowerCase().includes(search) ||
+      customer.mobile?.toLowerCase().includes(search)
+    );
+
+    const isArchived = customer.status === '離職';
+
+    // 🟢 情況 A：管理員模式 -> 在職與離職百分之百全面一同顯示，不受勾選框限制
+    if (isAdmin) return matchesSearch;
+
+    // 🔵 情況 B：訪客模式 -> 預設只看得到在職，除非「手動勾選了 showArchived」才放行離職人員
+    if (!isAdmin && !showArchived && isArchived) return false;
+
+    return matchesSearch;
   });
 
   return (
@@ -279,9 +323,17 @@ export default function CustomerPage() {
           </div>
         </div>
 
-        {/* Search */}
-        <div className="mb-6">
-          <input type="text" placeholder="搜尋公司、廠區、聯絡人、職稱或地址..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full md:w-96 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        {/* 工具列區塊 */}
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <input type="text" placeholder="搜尋公司、廠區、聯絡人、手機、地址..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full md:w-96 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          
+          {/* 🧠 智慧切換：只有在「未登入（訪客）」時，才提供這個手動過濾勾選框 */}
+          {!isAdmin && (
+            <label className="flex items-center gap-2 text-xs md:text-sm text-gray-400 cursor-pointer select-none bg-gray-800 border border-gray-700 px-3 py-2 rounded-lg hover:border-gray-600 transition-colors animate-in fade-in duration-200">
+              <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} className="rounded bg-gray-700 border-gray-600 text-blue-600 focus:ring-0 w-4 h-4" />
+              <span>顯示已離職窗口人員</span>
+            </label>
+          )}
         </div>
 
         {loading ? (
@@ -296,45 +348,58 @@ export default function CustomerPage() {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-gray-750 border-b border-gray-700 text-gray-400 text-sm font-medium">
-                      <th className="p-4">公司 / 廠區 / 樓層</th>
+                      <th className="p-4">現況</th>
+                      <th className="p-4">Company / 廠區 / 樓層</th>
                       <th className="p-4">聯絡人 / 職稱</th>
+                      <th className="p-4">行動電話 (手機)</th>
                       <th className="p-4">聯絡電話 (分機)</th>
                       <th className="p-4">Line ID</th>
-                      <th className="p-4">公司地址 (點擊導航)</th>
+                      <th className="p-4">公司地址</th>
                       <th className="p-4">備註</th>
                       {isAdmin && <th className="p-4 text-center">操作</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-700 text-sm">
-                    {filteredCustomers.map((customer) => (
-                      <tr key={customer.id} className="hover:bg-gray-750 transition-colors">
-                        <td className="p-4">
-                          <div className="font-semibold text-white">{customer.company_name}</div>
-                          <div className="text-xs text-gray-400 mt-0.5">{customer.facility_name || '--'} {customer.facility_floor ? `(${customer.facility_floor}F)` : ''}</div>
-                        </td>
-                        <td className="p-4">
-                          <div className="text-gray-200">{customer.contact_name}</div>
-                          <div className="text-xs text-gray-400 mt-0.5">{customer.title || '--'}</div>
-                        </td>
-                        <td className="p-4 text-gray-300 font-mono">
-                          {customer.phone ? <a href={`tel:${customer.phone}`} className="text-blue-400 hover:text-blue-300 hover:underline transition-colors">{customer.phone}{customer.extension ? ` #${customer.extension}` : ''}</a> : '--'}
-                        </td>
-                        <td className="p-4">
-                          {customer.line_id ? <button onClick={() => setActiveLineId(customer.line_id)} className="text-green-400 hover:text-green-300 hover:underline flex items-center gap-1 font-medium transition-colors"><span>{customer.line_id}</span><span className="text-xs bg-green-950 text-green-400 border border-green-800 px-1.5 py-0.5 rounded">QR</span></button> : <span className="text-gray-500">--</span>}
-                        </td>
-                        <td className="p-4 max-w-xs">
-                          {customer.address ? <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address.split(/[\s\(\（]/)[0])}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1 transition-colors truncate">{customer.address}</a> : <span className="text-gray-500">--</span>}
-                        </td>
-                        <td className="p-4 text-gray-400 max-w-xs truncate" title={customer.notes || ''}>{customer.notes || '--'}</td>
-                        {isAdmin && (
-                          <td className="p-4 text-center space-x-2 whitespace-nowrap">
-                            <button onClick={() => handleOpenEditModal(customer)} className="text-amber-400 hover:text-amber-300 hover:underline font-medium transition-colors">編輯</button>
-                            <span className="text-gray-600">|</span>
-                            <button onClick={() => handleDeleteCustomer(customer.id, customer.contact_name, customer.company_name)} className="text-red-400 hover:text-red-300 hover:underline font-medium transition-colors">刪除</button>
+                    {filteredCustomers.map((customer) => {
+                      const isLeft = customer.status === '離職';
+                      return (
+                        <tr key={customer.id} className={`transition-colors ${isLeft ? 'bg-gray-850/40 opacity-50' : 'hover:bg-gray-750'}`}>
+                          <td className="p-4 whitespace-nowrap">
+                            <span className={`px-2 py-0.5 text-xs font-bold rounded-md ${isLeft ? 'bg-red-950 text-red-400 border border-red-900/60' : 'bg-green-950 text-green-400 border border-green-900/60'} border`}>
+                              {customer.status || '在職'}
+                            </span>
                           </td>
-                        )}
-                      </tr>
-                    ))}
+                          <td className="p-4">
+                            <div className={`font-semibold ${isLeft ? 'text-gray-400' : 'text-white'}`}>{customer.company_name}</div>
+                            <div className="text-xs text-gray-400 mt-0.5">{customer.facility_name || '--'} {customer.facility_floor ? `(${customer.facility_floor}F)` : ''}</div>
+                          </td>
+                          <td className="p-4">
+                            <div className={isLeft ? 'text-gray-400' : 'text-gray-200'}>{customer.contact_name}</div>
+                            <div className="text-xs text-gray-400 mt-0.5">{customer.title || '--'}</div>
+                          </td>
+                          <td className="p-4 text-amber-400 font-mono font-semibold">
+                            {!isLeft && customer.mobile ? <a href={`tel:${customer.mobile}`} className="hover:text-amber-300 hover:underline transition-colors">{customer.mobile}</a> : <span className="text-gray-500">{customer.mobile || '--'}</span>}
+                          </td>
+                          <td className="p-4 text-gray-300 font-mono">
+                            {!isLeft && customer.phone ? <a href={`tel:${customer.phone}`} className="text-blue-400 hover:text-blue-300 hover:underline transition-colors">{customer.phone}{customer.extension ? ` #${customer.extension}` : ''}</a> : <span className="text-gray-500">{customer.phone || '--'}</span>}
+                          </td>
+                          <td className="p-4">
+                            {!isLeft && customer.line_id ? <button onClick={() => setActiveLineId(customer.line_id)} className="text-green-400 hover:text-green-300 hover:underline flex items-center gap-1 font-medium transition-colors"><span>{customer.line_id}</span><span className="text-xs bg-green-950 text-green-400 border border-green-800 px-1.5 py-0.5 rounded">QR</span></button> : <span className="text-gray-500">{customer.line_id || '--'}</span>}
+                          </td>
+                          <td className="p-4 max-w-xs">
+                            {customer.address ? <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address.split(/[\s\(\（]/)[0])}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1 transition-colors truncate">{customer.address}</a> : <span className="text-gray-500">--</span>}
+                          </td>
+                          <td className="p-4 text-gray-400 max-w-xs truncate" title={customer.notes || ''}>{customer.notes || '--'}</td>
+                          {isAdmin && (
+                            <td className="p-4 text-center space-x-2 whitespace-nowrap">
+                              <button onClick={() => handleOpenEditModal(customer)} className="text-amber-400 hover:text-amber-300 hover:underline font-medium transition-colors">編輯</button>
+                              <span className="text-gray-600">|</span>
+                              <button onClick={() => handleDeleteCustomer(customer.id, customer.contact_name, customer.company_name)} className="text-red-400 hover:text-red-300 hover:underline font-medium transition-colors">刪除</button>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -342,41 +407,56 @@ export default function CustomerPage() {
 
             {/* 2. Mobile Cards */}
             <div className="block md:hidden space-y-4">
-              {filteredCustomers.map((customer) => (
-                <div key={customer.id} className="bg-gray-800 border border-gray-700 rounded-xl p-4 shadow-md space-y-3">
-                  <div className="flex justify-between items-start border-b border-gray-700 pb-2">
-                    <div>
-                      <div className="text-base font-bold text-white">{customer.company_name}</div>
-                      <div className="text-xs text-gray-400 mt-0.5">{customer.facility_name || '無特定廠區'} {customer.facility_floor ? ` • ${customer.facility_floor}F` : ''}</div>
-                    </div>
-                    {isAdmin && (
-                      <div className="flex gap-3 text-xs pt-0.5">
-                        <button onClick={() => handleOpenEditModal(customer)} className="text-amber-400 font-semibold bg-amber-950/40 px-2 py-1 rounded border border-amber-900/60">編輯</button>
-                        <button onClick={() => handleDeleteCustomer(customer.id, customer.contact_name, customer.company_name)} className="text-red-400 font-semibold bg-red-950/40 px-2 py-1 rounded border border-red-900/60">刪除</button>
+              {filteredCustomers.map((customer) => {
+                const isLeft = customer.status === '離職';
+                return (
+                  <div key={customer.id} className="bg-gray-800 border rounded-xl p-4 shadow-md space-y-3 border-gray-700">
+                    <div className="flex justify-between items-start border-b border-gray-700 pb-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-1.5 py-0.2 text-[10px] font-bold rounded ${isLeft ? 'bg-red-950 text-red-400 border border-red-900' : 'bg-green-950 text-green-400 border border-green-900'} border`}>
+                            {customer.status || '在職'}
+                          </span>
+                          <div className="text-base font-bold text-white">{customer.company_name}</div>
+                        </div>
+                        <div className="text-xs text-gray-400 mt-1">{customer.facility_name || '無特定廠區'} {customer.facility_floor ? ` • ${customer.facility_floor}F` : ''}</div>
                       </div>
-                    )}
+                      {isAdmin && (
+                        <div className="flex gap-2 text-xs">
+                          <button onClick={() => handleOpenEditModal(customer)} className="text-amber-400 font-semibold bg-amber-950/40 px-2 py-1 rounded border border-amber-900/60">編輯</button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm bg-gray-750 p-2.5 rounded-lg">
+                      <div><span className="text-xs text-gray-400 block mb-0.5">聯絡窗口</span><span className="text-gray-200 font-medium">{customer.contact_name}</span></div>
+                      <div><span className="text-xs text-gray-400 block mb-0.5">職稱</span><span className="text-gray-300">{customer.title || '--'}</span></div>
+                    </div>
+                    
+                    <div className="text-xs space-y-1 bg-gray-900/40 p-2 rounded-lg font-mono">
+                      {customer.mobile && <div><span className="text-amber-500">手機：</span>{customer.mobile}</div>}
+                      {customer.phone && <div><span className="text-blue-400">總機：</span>{customer.phone}{customer.extension ? ` #${customer.extension}` : ''}</div>}
+                    </div>
+
+                    <div className="space-y-1.5 text-xs text-gray-300 px-1">
+                      {customer.address && <div className="leading-relaxed"><span className="text-gray-500 font-medium">地址：</span>{customer.address}</div>}
+                      {customer.notes && <div className="leading-relaxed"><span className="text-gray-500 font-medium">備註：</span>{customer.notes}</div>}
+                    </div>
+                    
+                    <div className="grid grid-cols-4 gap-1.5 pt-1">
+                      {!isLeft && customer.mobile ? <a href={`tel:${customer.mobile}`} className="bg-amber-600 hover:bg-amber-500 text-white text-center py-2 rounded-lg text-[11px] font-bold transition-colors"><span>撥打手機</span></a> : <div className="bg-gray-500 text-gray-500 border border-gray-800 text-center py-2 rounded-lg text-[11px] flex items-center justify-center">無手機</div>}
+                      {!isLeft && customer.phone ? <a href={`tel:${customer.phone}`} className="bg-blue-900/60 hover:bg-blue-900 text-blue-300 border border-blue-800 text-center py-2 rounded-lg text-[11px] font-medium flex flex-col items-center justify-center gap-0.5"><span className="text-[9px] text-blue-400">總機分機</span></a> : <div className="bg-gray-500 text-gray-500 border border-gray-800 text-center py-2 rounded-lg text-[11px] flex items-center justify-center">無總機</div>}
+                      {!isLeft && customer.line_id ? <button onClick={() => setActiveLineId(customer.line_id)} className="bg-green-900/60 hover:bg-green-900 text-green-300 border border-green-800 text-center py-2 rounded-lg text-[11px] font-medium flex flex-col items-center justify-center gap-0.5"><span className="text-[9px] text-green-400">LINE</span></button> : <div className="bg-gray-500 text-gray-500 border border-gray-800 text-center py-2 rounded-lg text-[11px] flex items-center justify-center">無 LINE</div>}
+                      {customer.address ? <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address.split(/[\s\(\（]/)[0])}`} target="_blank" rel="noopener noreferrer" className="bg-purple-900/60 hover:bg-purple-900 text-purple-300 border border-purple-800 text-center py-2 rounded-lg text-[11px] font-medium flex flex-col items-center justify-center gap-0.5"><span className="text-[9px] text-purple-400">導航</span></a> : <div className="bg-gray-850 text-gray-600 border border-gray-800 text-center py-2 rounded-lg text-[11px] flex items-center justify-center">無地址</div>}
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-sm bg-gray-750 p-2.5 rounded-lg">
-                    <div><span className="text-xs text-gray-400 block mb-0.5">聯絡窗口</span><span className="text-gray-200 font-medium">{customer.contact_name}</span></div>
-                    <div><span className="text-xs text-gray-400 block mb-0.5">職稱</span><span className="text-gray-300">{customer.title || '--'}</span></div>
-                  </div>
-                  <div className="space-y-1.5 text-xs text-gray-300 px-1">
-                    {customer.address && <div className="leading-relaxed"><span className="text-gray-500 font-medium">地址：</span>{customer.address}</div>}
-                    {customer.notes && <div className="leading-relaxed"><span className="text-gray-500 font-medium">備註：</span>{customer.notes}</div>}
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 pt-1">
-                    {customer.phone ? <a href={`tel:${customer.phone}`} className="bg-blue-900/60 hover:bg-blue-900 text-blue-300 border border-blue-800 text-center py-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center gap-0.5 transition-colors"><span className="text-[10px] text-blue-400 font-mono">撥打總機</span><span className="truncate max-w-full px-1">{customer.phone}{customer.extension ? `#${customer.extension}` : ''}</span></a> : <div className="bg-gray-850 text-gray-600 border border-gray-800 text-center py-2 rounded-lg text-xs flex items-center justify-center">無電話</div>}
-                    {customer.line_id ? <button onClick={() => setActiveLineId(customer.line_id)} className="bg-green-900/60 hover:bg-green-900 text-green-300 border border-green-800 text-center py-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center gap-0.5 transition-colors"><span className="text-[10px] text-green-400">LINE 掃碼</span><span className="truncate max-w-full px-1">{customer.line_id}</span></button> : <div className="bg-gray-850 text-gray-600 border border-gray-800 text-center py-2 rounded-lg text-xs flex items-center justify-center">無 LINE</div>}
-                    {customer.address ? <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address.split(/[\s\(\（]/)[0])}`} target="_blank" rel="noopener noreferrer" className="bg-purple-900/60 hover:bg-purple-900 text-purple-300 border border-purple-800 text-center py-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center gap-0.5 transition-colors"><span className="text-[10px] text-purple-400">Google</span><span>開啟導航</span></a> : <div className="bg-gray-850 text-gray-600 border border-gray-800 text-center py-2 rounded-lg text-xs flex items-center justify-center">無地址</div>}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </>
         )}
       </div>
 
-      {/* 新增/編輯視窗 (Modal) */}
+      {/* 新增/編輯視窗 */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-2xl bg-gray-800 border border-gray-700 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
@@ -386,7 +466,7 @@ export default function CustomerPage() {
             </div>
             <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-4 max-h-[80vh] overflow-y-auto">
               
-              {/* ==================== 🛠️ 電子名片快捷匯入專區 (僅在新增時顯示) ==================== */}
+              {/* 電子名片快捷匯入 */}
               {!editingCustomerId && (
                 <div className="bg-gray-850 border border-dashed border-gray-600 rounded-xl p-3 md:p-4 space-y-2">
                   <div className="text-xs font-bold text-blue-400 tracking-wider flex items-center gap-1.5">
@@ -399,21 +479,37 @@ export default function CustomerPage() {
                 </div>
               )}
 
-              {/* 表單主要輸入欄位 */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div><label className="block text-xs font-medium text-gray-400 mb-1">Company *</label><input type="text" name="company_name" required value={formData.company_name} onChange={handleInputChange} placeholder="e.g. TSMC" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" /></div>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="md:col-span-2"><label className="block text-xs font-medium text-gray-400 mb-1">Company *</label><input type="text" name="company_name" required value={formData.company_name} onChange={handleInputChange} placeholder="e.g. TSMC" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" /></div>
                 <div><label className="block text-xs font-medium text-gray-400 mb-1">Facility</label><input type="text" name="facility_name" value={formData.facility_name || ''} onChange={handleInputChange} placeholder="e.g. 中科廠" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" /></div>
                 <div><label className="block text-xs font-medium text-gray-400 mb-1">Floor</label><input type="text" name="facility_floor" value={formData.facility_floor || ''} onChange={handleInputChange} placeholder="e.g. 3" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" /></div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div><label className="block text-xs font-medium text-gray-400 mb-1">Contact Name *</label><input type="text" name="contact_name" required value={formData.contact_name} onChange={handleInputChange} placeholder="Name" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" /></div>
                 <div><label className="block text-xs font-medium text-gray-400 mb-1">Title</label><input type="text" name="title" value={formData.title || ''} onChange={handleInputChange} placeholder="Title" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" /></div>
+                <div>
+                  <label className="block text-xs font-medium text-blue-400 mb-1">現況 (人員有效性) *</label>
+                  <select name="status" value={formData.status} onChange={handleInputChange} className="w-full px-3 py-2 bg-gray-700 border border-blue-900/60 rounded-lg text-white font-medium focus:outline-none">
+                    <option value="在職">🟢 在職</option>
+                    <option value="離職">🔴 離職</option>
+                  </select>
+                </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="md:col-span-2"><label className="block text-xs font-medium text-gray-400 mb-1">Phone</label><input type="text" name="phone" value={formData.phone || ''} onChange={handleInputChange} placeholder="Phone" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" /></div>
+
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-medium text-amber-400 mb-1">行動電話 (手機)</label>
+                  <input type="text" name="mobile" value={formData.mobile || ''} onChange={handleInputChange} placeholder="e.g. 0912345678" className="w-full px-3 py-2 bg-gray-700 border border-amber-900/40 rounded-lg text-white font-medium focus:outline-none" />
+                </div>
+                <div className="md:col-span-1">
+                  <label className="block text-xs font-medium text-gray-400 mb-1">公司電話 (總機)</label>
+                  <input type="text" name="phone" value={formData.phone || ''} onChange={handleInputChange} placeholder="e.g. 033123456" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" />
+                </div>
                 <div><label className="block text-xs font-medium text-gray-400 mb-1">Ext.</label><input type="text" name="extension" value={formData.extension || ''} onChange={handleInputChange} placeholder="Ext" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" /></div>
                 <div><label className="block text-xs font-medium text-gray-400 mb-1">Line ID</label><input type="text" name="line_id" value={formData.line_id || ''} onChange={handleInputChange} placeholder="Line ID" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" /></div>
               </div>
+
               <div><label className="block text-xs font-medium text-gray-400 mb-1">Email</label><input type="email" name="email" value={formData.email || ''} onChange={handleInputChange} placeholder="Email" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" /></div>
               
               <div className="space-y-2">
@@ -426,7 +522,7 @@ export default function CustomerPage() {
               </div>
               <div><label className="block text-xs font-medium text-gray-400 mb-1">Notes</label><textarea name="notes" rows={5} value={formData.notes || ''} onChange={handleInputChange} placeholder="Notes..." className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none resize-none font-mono text-xs leading-relaxed" /></div>
               <div className="pt-4 border-t border-gray-700 flex justify-end gap-3">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg font-medium">取消</button>
+                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-gray-750 text-gray-200 rounded-lg font-medium">取消</button>
                 <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium disabled:opacity-50">{isSubmitting ? '儲存中...' : editingCustomerId ? '確認更新' : '確認新增'}</button>
               </div>
             </form>
@@ -459,7 +555,7 @@ export default function CustomerPage() {
           <span className="text-[10px] text-gray-500 font-mono">Realtime</span>
         </div>
         <div className="p-3 space-y-2 max-h-60 overflow-y-auto divide-y divide-gray-800">
-          {customers.length === 0 ? (
+          {logs.length === 0 ? (
             <div className="text-center py-6 text-xs text-gray-500">暫無近日變更紀錄</div>
           ) : (
             logs.map((log, index) => (
