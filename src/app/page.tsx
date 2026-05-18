@@ -26,7 +26,7 @@ export default function CustomerPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // 🧠 核心解鎖：將安全鎖回歸單純的網頁掛載監聽
+  // 核心安全鎖，根除 Hydration Mismatch 報錯
   const [isMounted, setIsMounted] = useState(false);
 
   // 訪客模式下的手動過濾控制
@@ -213,7 +213,7 @@ export default function CustomerPage() {
       setConfirmPassword('');
     } catch (error: any) {
       alert(`密碼變更失敗：${error.message}`);
-    } finally {
+    } finaly {
       setPwdUpdating(false);
     }
   };
@@ -231,15 +231,7 @@ export default function CustomerPage() {
     }
   };
 
-  // 點擊搜尋或狀態篩選變更時，自動校準手機滾動錨點回到最左側
-  useEffect(() => {
-    setCurrentMobileIndex(0);
-    if (mobileContainerRef.current) {
-      mobileContainerRef.current.scrollTo({ left: 0 });
-    }
-  }, [searchTerm, showArchived]);
-
-  // 🧠 核心修正 A：單獨建立一個最純粹的掛載 useEffect，一載入網頁就立刻翻轉為 true
+  // 網頁一載入，立刻解鎖前端掛載狀態
   useEffect(() => {
     setIsMounted(true);
   }, []);
@@ -322,7 +314,7 @@ export default function CustomerPage() {
       email: customer.email || '', 
       address: customer.address || '', 
       notes: customer.notes || '',
-      status: customer.status || 'InService',
+      status: customer.status || '在職',
       mobile: customer.mobile || ''
     });
 
@@ -422,9 +414,8 @@ export default function CustomerPage() {
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const paginatedCustomers = filteredCustomers.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
-  // 🧠 核心修正 B：如果還沒掛載，直接返回，這時 Next.js 在伺服器端渲染空狀態
   if (!isMounted) {
-    return <div className="min-h-screen bg-slate-50 text-slate-500 flex items-center justify-center text-sm font-mono tracking-wider">SYSTEM INITIALIZING...</div>;
+    return <div className="min-h-screen bg-slate-50 text-slate-500 flex items-center justify-center text-sm">系統初始化安全驗證中...</div>;
   }
 
   return (
@@ -465,17 +456,16 @@ export default function CustomerPage() {
 
         {/* 工具列區塊 */}
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <input type="text" placeholder="搜尋公司、廠區、聯絡人..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }} className="w-full md:w-96 px-4 py-2 bg-white border border-slate-400 rounded-lg text-black text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-blue-600 font-medium placeholder-slate-500 shadow-2xs" />
+          <input type="text" placeholder="搜尋公司、廠區、聯絡人..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); setCurrentMobileIndex(0); }} className="w-full md:w-96 px-4 py-2 bg-white border border-slate-400 rounded-lg text-black text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-blue-600 font-medium placeholder-slate-500 shadow-2xs" />
           
           {!isAdmin && (
             <label className="flex items-center gap-2 text-xs md:text-sm text-slate-800 font-bold cursor-pointer select-none bg-white border border-slate-400 rounded-lg px-3 py-2 hover:bg-slate-50 transition-colors shadow-2xs">
-              <input type="checkbox" checked={showArchived} onChange={(e) => { setShowArchived(e.target.checked); setCurrentPage(1); }} className="rounded bg-slate-100 border-slate-400 text-blue-600 focus:ring-0 w-4 h-4" />
+              <input type="checkbox" checked={showArchived} onChange={(e) => { setShowArchived(e.target.checked); setCurrentPage(1); setCurrentMobileIndex(0); }} className="rounded bg-slate-100 border-slate-400 text-blue-600 focus:ring-0 w-4 h-4" />
               <span>顯示已離職窗口人員</span>
             </label>
           )}
         </div>
 
-        {/* 列表內容與分頁 */}
         {loading ? (
           <div className="text-center py-12 text-slate-600 font-bold font-mono">資料載入中...</div>
         ) : filteredCustomers.length === 0 ? (
@@ -521,7 +511,7 @@ export default function CustomerPage() {
                               <div className="text-xs text-slate-600 font-semibold mt-0.5">{customer.title || '--'}</div>
                             </td>
                             <td className="p-4 text-blue-700 font-mono font-bold tracking-wide">
-                              {!isLeft && customer.mobile ? <a href={`tel:${customer.mobile}`} className="hover:text-blue-500 hover:underline transition-colors">{formatMobileDisplay(customer.mobile)}</a> : <span className="text-slate-400">{formatMobileDisplay(customer.mobile)}</span>}
+                              {!isLeft && customer.mobile ? <a href={`tel:${customer.mobile}`} className="hover:text-blue-600 hover:underline transition-colors">{formatMobileDisplay(customer.mobile)}</a> : <span className="text-slate-400">{formatMobileDisplay(customer.mobile)}</span>}
                             </td>
                             <td className="p-4 text-slate-900 font-mono font-medium">
                               {!isLeft && customer.phone ? <a href={`tel:${customer.phone}`} className="text-blue-700 hover:text-blue-600 hover:underline transition-colors">{formatPhoneDisplay(customer.phone)}{customer.extension ? ` #${customer.extension}` : ''}</a> : <span className="text-slate-400">{formatPhoneDisplay(customer.phone) || '--'}</span>}
@@ -532,7 +522,7 @@ export default function CustomerPage() {
                             {isAdmin && (
                               <td className="p-4 text-center space-x-2 whitespace-nowrap text-xs font-bold">
                                 <button onClick={() => handleOpenEditModal(customer)} className="text-amber-700 hover:text-amber-600 transition-colors">編輯</button>
-                                <span className="text-slate-400">|</span>
+                                <span className="text-slate-300">|</span>
                                 <button onClick={() => handleDeleteCustomer(customer.id, customer.contact_name, customer.company_name)} className="text-red-600 hover:text-red-400 transition-colors">刪除</button>
                               </td>
                             )}
@@ -545,7 +535,7 @@ export default function CustomerPage() {
                                     <h4 className="text-[11px] font-bold tracking-wider text-slate-400 uppercase border-b border-slate-300 pb-1">詳細聯絡資訊</h4>
                                     <div><span className="text-slate-500 font-bold mr-2">電子郵件:</span>{customer.email ? <a href={`mailto:${customer.email}`} className="text-blue-700 font-bold hover:underline">{customer.email}</a> : <span className="text-slate-400">未提供</span>}</div>
                                     <div><span className="text-slate-500 font-bold mr-2">公司地址:</span>{customer.address ? (
-                                      <a href={`http://maps.google.com/?q=${encodeURIComponent(customer.address.split(/[\s\(\停]/)[0])}`} target="_blank" rel="noopener noreferrer" className="text-blue-700 font-bold hover:underline inline-flex items-center gap-1">
+                                      <a href={`http://maps.google.com/?q=${encodeURIComponent(customer.address.split(/[\s\(\（]/)[0])}`} target="_blank" rel="noopener noreferrer" className="text-blue-700 font-bold hover:underline inline-flex items-center gap-1">
                                         {customer.address}
                                         <span className="text-[10px] bg-purple-100 text-purple-800 border border-purple-300 px-1 rounded font-bold">地圖</span>
                                       </a>
@@ -566,7 +556,7 @@ export default function CustomerPage() {
                 </table>
               </div>
 
-              {/* 分頁按鈕列 */}
+              {/* 電腦端分頁列 */}
               <div className="bg-slate-50 border-t border-slate-200 px-4 py-3.5 flex items-center justify-between text-slate-700 font-mono text-xs select-none">
                 <div>
                   顯示第 <span className="font-bold text-slate-900">{filteredCustomers.length === 0 ? 0 : startIndex + 1}</span> 至 <span className="font-bold text-slate-900">{Math.min(startIndex + ITEMS_PER_PAGE, filteredCustomers.length)}</span> 筆，共 <span className="font-bold text-slate-900">{filteredCustomers.length}</span> 筆客戶資料
@@ -584,6 +574,8 @@ export default function CustomerPage() {
             {/* 2. Mobile View */}
             <div className="block md:hidden relative w-full overflow-hidden">
               <div 
+                // 🧠 終極核心解法：利用 React key 強迫滑動軌道在搜尋字改變時完全重新初始化 (Remount)，徹底解決畫面卡一半的宿疾！
+                key={`${searchTerm}-${showArchived}`}
                 ref={mobileContainerRef}
                 onScroll={handleMobileScroll}
                 className="flex flex-row flex-nowrap overflow-x-auto snap-x snap-mandatory scrollbar-none w-full pb-2 touch-pan-x"
@@ -643,7 +635,7 @@ export default function CustomerPage() {
                 })}
               </div>
 
-              {/* 手機點引導點 */}
+              {/* 手機點引導點：同步監聽過濾長度 */}
               <div className="flex justify-center items-center gap-1.5 mt-2 flex-wrap max-w-full px-4">
                 {filteredCustomers.map((_, idx) => (
                   <span 
@@ -653,14 +645,14 @@ export default function CustomerPage() {
                 ))}
               </div>
               <div className="text-center text-[10px] text-slate-500 font-mono font-bold mt-1">
-                ◀ 左右滑動切換聯絡人 (目前: {currentMobileIndex + 1} / {filteredCustomers.length}) ▶
+                ◀ 左右滑動切換聯絡人 (目前: {filteredCustomers.length === 0 ? 0 : currentMobileIndex + 1} / {filteredCustomers.length}) ▶
               </div>
             </div>
           </>
         )}
       </div>
 
-      {/* 變更密碼/日誌/LINE 彈出視窗保持原樣 */}
+      {/* 中央彈出視窗 (Modal) */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
           <div className="w-full max-w-2xl bg-white border border-slate-300 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 text-black font-semibold">
@@ -669,6 +661,7 @@ export default function CustomerPage() {
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-700 transition-colors text-xl">✕</button>
             </div>
             <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              
               {!editingCustomerId && (
                 <div className="bg-slate-50 border border-dashed border-slate-400 rounded-xl p-3 md:p-4 space-y-2">
                   <div className="text-xs font-bold text-blue-700 tracking-wider">⚡ 管理員電子名片快捷匯入</div>
@@ -729,6 +722,7 @@ export default function CustomerPage() {
         </div>
       )}
 
+      {/* LINE QR Code */}
       {activeLineId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
           <div className="w-full max-w-xs bg-white border border-slate-200 rounded-xl p-6 text-center shadow-2xl font-bold text-black">
@@ -743,6 +737,7 @@ export default function CustomerPage() {
         </div>
       )}
 
+      {/* 📊 最近變更紀錄智慧抽屜籤 */}
       <div ref={logPanelRef} className="fixed bottom-4 right-4 z-40 flex flex-col items-end font-sans font-bold">
         {isLogPanelOpen ? (
           <div className="w-80 bg-white border border-slate-300 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 text-slate-900">
@@ -785,10 +780,11 @@ export default function CustomerPage() {
         )}
       </div>
 
+      {/* 修改密碼彈出視窗 */}
       {isPwdModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
           <div className="w-full max-w-sm bg-white border border-slate-300 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 text-black font-bold">
-            <div className="px-5 py-4 border-b border-slate-300 flex items-center justify-between bg-slate-100">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-100">
               <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5 tracking-wider">
                 <span>🔐 修改管理員密碼</span>
               </h2>
@@ -801,7 +797,7 @@ export default function CustomerPage() {
               </div>
               <div>
                 <label className="block font-bold text-slate-400 mb-2">再次確認新密碼</label>
-                <input type="password" required autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="請再次輸入新密碼" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-black text-sm focus:outline-none focus:ring-2 focus:ring-blue-600" />
+                <input type="password" required autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="請 presidential 輸入新密碼" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-black text-sm focus:outline-none focus:ring-2 focus:ring-blue-600" />
               </div>
               <div className="pt-2 flex justify-end gap-2 bg-slate-50 p-3 -mx-5 -mb-5 border-t border-slate-200">
                 <button type="button" onClick={() => { setIsPwdModalOpen(false); setNewPassword(''); setConfirmPassword(''); }} className="px-4 py-2 bg-white border border-slate-400 text-slate-700 rounded-md font-bold">CANCEL</button>
