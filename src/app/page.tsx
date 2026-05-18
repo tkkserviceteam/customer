@@ -35,8 +35,13 @@ export default function CustomerPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null);
 
-  // 智慧匯入狀態
+  // 智慧匯入與快篩提取狀態
   const [importLoading, setImportLoading] = useState(false);
+  // 用來儲存 OCR 提取出的推薦欄位暫存
+  const [extractedSuggestions, setExtractedSuggestions] = useState<{
+    phone?: string;
+    email?: string;
+  }>({});
 
   // Line QR Code Modal 狀態
   const [activeLineId, setActiveLineId] = useState<string | null>(null);
@@ -71,7 +76,6 @@ export default function CustomerPage() {
       const text = event.target?.result as string;
       if (!text) return;
 
-      // 使用 Regex 擷取 VCard 標準欄位
       const orgMatch = text.match(/ORG:(.*?)(?:\r?\n|;)/);
       const fnMatch = text.match(/FN:(.*?)(?:\r?\n|;)/);
       const telMatch = text.match(/TEL(?:;.*?):(.*)/);
@@ -92,13 +96,15 @@ export default function CustomerPage() {
     reader.readAsText(file);
   };
 
-  // 智慧匯入：處理名片圖片 OCR 辨識
+  // 智慧匯入：處理名片圖片 OCR 辨識 + 特徵快篩
   const handleImageOcrImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     try {
       setImportLoading(true);
+      setExtractedSuggestions({}); // 清空舊的推薦
+      
       const worker = await createWorker('chi_tra+eng');
       const ret = await worker.recognize(file);
       const ocrText = ret.data.text;
@@ -109,12 +115,26 @@ export default function CustomerPage() {
         return;
       }
 
+      // 🧠 核心升級：後台特徵篩子（用 Regex 在長文本裡主動抓取電話與信箱）
+      const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+      const phoneRegex = /(?:09\d{8})|(?:0\d{1,2}-\d{6,8})/g; // 支援台灣手機與市話
+      
+      const foundEmails = ocrText.match(emailRegex);
+      const foundPhones = ocrText.match(phoneRegex);
+
+      // 把過濾出的可能結果塞入快篩暫存暫存庫
+      setExtractedSuggestions({
+        email: foundEmails ? foundEmails[0] : undefined,
+        phone: foundPhones ? foundPhones[0].replace(/[- ]/g, '') : undefined,
+      });
+
+      // 依然完整保留全部文字在外掛備註欄中
       setFormData((prev) => ({
         ...prev,
         notes: `【名片自動 OCR 辨識結果】：\n${ocrText}\n\n${prev.notes || ''}`
       }));
 
-      alert('名片圖片掃描完成！文字已成功提取並注入下方「備註說明」中。');
+      alert('名片圖片掃描完成！文字已提取至備註，並已啟動智慧欄位快篩指派功能。');
     } catch (error) {
       console.error('OCR 失敗:', error);
       alert('名片辨識發生錯誤，請稍後再試。');
@@ -215,6 +235,7 @@ export default function CustomerPage() {
 
   const handleOpenCreateModal = () => {
     setEditingCustomerId(null);
+    setExtractedSuggestions({});
     setFormData({ company_name: '', facility_name: '', facility_floor: '', contact_name: '', title: '', phone: '', extension: '', line_id: '', email: '', address: '', notes: '' });
     setCity(''); setDist(''); setDetailAddress('');
     setIsModalOpen(true);
@@ -222,6 +243,7 @@ export default function CustomerPage() {
 
   const handleOpenEditModal = (customer: Customer) => {
     setEditingCustomerId(customer.id);
+    setExtractedSuggestions({});
     setFormData({ company_name: customer.company_name, facility_name: customer.facility_name || '', facility_floor: customer.facility_floor || '', contact_name: customer.contact_name, title: customer.title || '', phone: customer.phone || '', extension: customer.extension || '', line_id: customer.line_id || '', email: customer.email || '', address: customer.address || '', notes: customer.notes || '' });
 
     let foundCity = ''; let foundDist = ''; let foundDetail = customer.address || '';
@@ -279,7 +301,7 @@ export default function CustomerPage() {
       fetchCustomers();
     } catch (error) {
       alert('儲存失敗，請檢查管理員登入權限。');
-    } finally { // 💡 這裡已修正為完美的 finally
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -420,7 +442,7 @@ export default function CustomerPage() {
             </div>
             <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-4 max-h-[80vh] overflow-y-auto">
               
-              {/* ==================== 🛠️ 管理員智慧快捷匯入專區 (僅在新增時顯示) ==================== */}
+              {/* 管理員智慧快捷匯入專區 */}
               {!editingCustomerId && (
                 <div className="bg-gray-850 border border-dashed border-gray-600 rounded-xl p-3 md:p-4 space-y-3">
                   <div className="text-xs font-bold text-blue-400 tracking-wider flex items-center gap-1.5">
@@ -428,12 +450,10 @@ export default function CustomerPage() {
                     {importLoading && <span className="text-amber-400 text-[11px] animate-pulse">(名片 OCR 智慧讀取中，請稍候...)</span>}
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                    {/* A. VCF 檔案解碼 */}
                     <div className="bg-gray-800 p-2.5 rounded-lg border border-gray-700">
                       <label className="block text-gray-400 mb-1.5 font-medium">① 匯入電子名片 (.vcf)</label>
                       <input type="file" accept=".vcf" onChange={handleVcfImport} disabled={importLoading} className="w-full text-[11px] text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-semibold file:bg-blue-950 file:text-blue-400 hover:file:bg-blue-900 cursor-pointer disabled:opacity-40" />
                     </div>
-                    {/* B. 名片圖片 OCR */}
                     <div className="bg-gray-800 p-2.5 rounded-lg border border-gray-700">
                       <label className="block text-gray-400 mb-1.5 font-medium">② 掃描實體名片圖片 (OCR)</label>
                       <input type="file" accept="image/*" onChange={handleImageOcrImport} disabled={importLoading} className="w-full text-[11px] text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-semibold file:bg-purple-950 file:text-purple-400 hover:file:bg-purple-900 cursor-pointer disabled:opacity-40" />
@@ -452,12 +472,52 @@ export default function CustomerPage() {
                 <div><label className="block text-xs font-medium text-gray-400 mb-1">Contact Name *</label><input type="text" name="contact_name" required value={formData.contact_name} onChange={handleInputChange} placeholder="Name" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" /></div>
                 <div><label className="block text-xs font-medium text-gray-400 mb-1">Title</label><input type="text" name="title" value={formData.title || ''} onChange={handleInputChange} placeholder="Title" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" /></div>
               </div>
+              
+              {/* 電話與 Email 欄位整合智慧快篩提取按鈕 */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="md:col-span-2"><label className="block text-xs font-medium text-gray-400 mb-1">Phone</label><input type="text" name="phone" value={formData.phone || ''} onChange={handleInputChange} placeholder="Phone" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" /></div>
+                <div className="md:col-span-2">
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-xs font-medium text-gray-400">Phone</label>
+                    {/* ⚡ 智慧提取按鈕：偵測到照片有電話時亮起 */}
+                    {extractedSuggestions.phone && (
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          setFormData(prev => ({ ...prev, phone: extractedSuggestions.phone! }));
+                          setExtractedSuggestions(prev => ({ ...prev, phone: undefined }));
+                        }}
+                        className="text-[10px] bg-blue-950 text-blue-400 border border-blue-800 px-1.5 py-0.5 rounded font-bold animate-bounce"
+                      >
+                        ⚡ 填入名片電話: {extractedSuggestions.phone}
+                      </button>
+                    )}
+                  </div>
+                  <input type="text" name="phone" value={formData.phone || ''} onChange={handleInputChange} placeholder="Phone" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" />
+                </div>
                 <div><label className="block text-xs font-medium text-gray-400 mb-1">Ext.</label><input type="text" name="extension" value={formData.extension || ''} onChange={handleInputChange} placeholder="Ext" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" /></div>
                 <div><label className="block text-xs font-medium text-gray-400 mb-1">Line ID</label><input type="text" name="line_id" value={formData.line_id || ''} onChange={handleInputChange} placeholder="Line ID" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" /></div>
               </div>
-              <div><label className="block text-xs font-medium text-gray-400 mb-1">Email</label><input type="email" name="email" value={formData.email || ''} onChange={handleInputChange} placeholder="Email" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" /></div>
+              
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-xs font-medium text-gray-400">Email</label>
+                  {/* ⚡ 智慧提取按鈕：偵測到照片有 Email 時亮起 */}
+                  {extractedSuggestions.email && (
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setFormData(prev => ({ ...prev, email: extractedSuggestions.email! }));
+                        setExtractedSuggestions(prev => ({ ...prev, email: undefined }));
+                      }}
+                      className="text-[10px] bg-purple-950 text-purple-400 border border-purple-800 px-1.5 py-0.5 rounded font-bold animate-bounce"
+                    >
+                      ⚡ 填入名片 Email: {extractedSuggestions.email}
+                    </button>
+                  )}
+                </div>
+                <input type="email" name="email" value={formData.email || ''} onChange={handleInputChange} placeholder="Email" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" />
+              </div>
+
               <div className="space-y-2">
                 <label className="block text-xs font-medium text-gray-400">Address</label>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
