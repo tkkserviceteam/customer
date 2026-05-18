@@ -149,7 +149,7 @@ export default function CustomerPage() {
       setCustomers(data || []);
     } catch (error) {
       console.error('讀取資料失敗:', error);
-    } finaly {
+    } finally {
       setLoading(false);
     }
   };
