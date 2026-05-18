@@ -192,8 +192,8 @@ export default function CustomerPage() {
     router.refresh();
   };
 
-  const handleUpdatePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleUpdatePassword = async (newE: React.FormEvent) => {
+    newE.preventDefault();
     if (newPassword.length < 6) {
       alert('資安防護提示：新密碼長度不可少於 6 位數。');
       return;
@@ -218,7 +218,7 @@ export default function CustomerPage() {
     }
   };
 
-  // 智慧監聽：手機版左右滑動校準小圓點
+  // 手機版左右滑動校準索引與導引點位置
   const handleMobileScroll = () => {
     if (mobileContainerRef.current) {
       const { scrollLeft, clientWidth } = mobileContainerRef.current;
@@ -230,33 +230,6 @@ export default function CustomerPage() {
       }
     }
   };
-
-  // 🧠 核心修正：當關鍵字搜尋或狀態篩選變更時，自動校準手機滾動錨點回到最左側，防止畫面變動異常
-  useEffect(() => {
-    setCurrentMobileIndex(0);
-    if (mobileContainerRef.current) {
-      mobileContainerRef.current.scrollTo({ left: 0 });
-    }
-  }, [searchTerm, showArchived]);
-
-  useEffect(() => {
-    const checkAuthAndFetch = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      updateAuthState(session);
-      supabase.auth.onAuthStateChange((_event, session) => { updateAuthState(session); });
-      await fetchCustomers();
-      await fetchLogs();
-      setIsMounted(true);
-    };
-    checkAuthAndFetch();
-
-    const activityEvents = ['mousemove', 'keydown', 'click', 'scroll'];
-    activityEvents.forEach(event => { window.addEventListener(event, resetIdleTimeout); });
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      activityEvents.forEach(event => { window.removeEventListener(event, resetIdleTimeout); });
-    };
-  }, [isAdmin]);
 
   const fetchCustomers = async () => {
     try {
@@ -414,6 +387,14 @@ export default function CustomerPage() {
     return matchesSearch;
   });
 
+  // 🧠 核心防跑版修正 A：只要關鍵字一發生變動，強制重置小圓點索引，並將手機滑動器強制復位到最左側（第 1 筆）
+  useEffect(() => {
+    setCurrentMobileIndex(0);
+    if (mobileContainerRef.current) {
+      mobileContainerRef.current.scrollTo({ left: 0 });
+    }
+  }, [searchTerm, showArchived]);
+
   const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE) || 1;
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const paginatedCustomers = filteredCustomers.slice(startIndex, startIndex + ITEMS_PER_PAGE);
@@ -515,10 +496,10 @@ export default function CustomerPage() {
                               <div className="text-xs text-slate-600 font-semibold mt-0.5">{customer.title || '--'}</div>
                             </td>
                             <td className="p-4 text-blue-700 font-mono font-bold tracking-wide">
-                              {!isLeft && customer.mobile ? <a href={`tel:${customer.mobile}`} className="hover:text-blue-600 hover:underline transition-colors">{formatMobileDisplay(customer.mobile)}</a> : <span className="text-slate-400">{formatMobileDisplay(customer.mobile)}</span>}
+                              {!isLeft && customer.mobile ? <a href={`tel:${customer.mobile}`} className="hover:text-blue-600 hover:underline transition-colors">{formatMobileDisplay(customer.mobile)}</a> : <span className="text-gray-400">{formatMobileDisplay(customer.mobile)}</span>}
                             </td>
                             <td className="p-4 text-slate-900 font-mono font-medium">
-                              {!isLeft && customer.phone ? <a href={`tel:${customer.phone}`} className="text-blue-700 hover:text-blue-600 hover:underline transition-colors">{formatPhoneDisplay(customer.phone)}{customer.extension ? ` #${customer.extension}` : ''}</a> : <span className="text-slate-400">{formatPhoneDisplay(customer.phone) || '--'}</span>}
+                              {!isLeft && customer.phone ? <a href={`tel:${customer.phone}`} className="text-blue-700 hover:text-blue-600 hover:underline transition-colors">{formatPhoneDisplay(customer.phone)}{customer.extension ? ` #${customer.extension}` : ''}</a> : <span className="text-gray-400">{formatPhoneDisplay(customer.phone) || '--'}</span>}
                             </td>
                             <td className="p-4 font-mono font-semibold">
                               {!isLeft && customer.line_id ? <button onClick={() => setActiveLineId(customer.line_id)} className="text-emerald-700 hover:text-emerald-600 hover:underline flex items-center gap-1 font-bold transition-colors"><span>{customer.line_id}</span><span className="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-1.5 py-0.2 rounded font-bold">QR</span></button> : <span className="text-slate-400">{customer.line_id || '--'}</span>}
@@ -538,7 +519,12 @@ export default function CustomerPage() {
                                   <div className="space-y-2 text-xs">
                                     <h4 className="text-[11px] font-bold tracking-wider text-slate-400 uppercase border-b border-slate-300 pb-1">詳細聯絡資訊</h4>
                                     <div><span className="text-slate-500 font-bold mr-2">電子郵件:</span>{customer.email ? <a href={`mailto:${customer.email}`} className="text-blue-700 font-bold hover:underline">{customer.email}</a> : <span className="text-slate-400">未提供</span>}</div>
-                                    <div><span className="text-slate-500 font-bold mr-2">公司地址:</span>{customer.address ? <a href={`http://maps.google.com/?q=${encodeURIComponent(customer.address.split(/[\s\(\（]/)[0])}`} target="_blank" rel="noopener noreferrer" className="text-blue-700 font-bold hover:underline inline-flex items-center gap-1">{customer.address}<span className="text-[10px] bg-purple-100 text-purple-800 border border-purple-300 px-1 rounded font-bold">地圖</span></a> : <span className="text-slate-400">未提供</span>}</div>
+                                    <div><span className="text-slate-500 font-bold mr-2">公司地址:</span>{customer.address ? (
+                                      <a href={`http://maps.google.com/?q=${encodeURIComponent(customer.address.split(/[\s\(\（]/)[0])}`} target="_blank" rel="noopener noreferrer" className="text-blue-700 font-bold hover:underline inline-flex items-center gap-1">
+                                        {customer.address}
+                                        <span className="text-[10px] bg-purple-100 text-purple-800 border border-purple-300 px-1 rounded font-bold">地圖</span>
+                                      </a>
+                                    ) : <span className="text-slate-400">未提供</span>}</div>
                                   </div>
                                   <div className="space-y-2">
                                     <h4 className="text-[11px] font-bold tracking-wider text-slate-400 uppercase border-b border-slate-300 pb-1">備註說明</h4>
@@ -571,11 +557,12 @@ export default function CustomerPage() {
             </div>
 
             {/* 2. Mobile View */}
-            <div className="block md:hidden relative">
+            <div className="block md:hidden relative w-full overflow-hidden">
               <div 
                 ref={mobileContainerRef}
                 onScroll={handleMobileScroll}
-                className="flex overflow-x-auto snap-x snap-mandatory scrollbar-none w-full pb-2 touch-pan-x"
+                // 🧠 核心防跑版修正 B：外層容器加裝 w-full flex flex-row flex-nowrap，完全杜絕卡片縮水
+                className="flex flex-row flex-nowrap overflow-x-auto snap-x snap-mandatory scrollbar-none w-full pb-2 touch-pan-x"
                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
               >
                 {filteredCustomers.map((customer) => {
@@ -584,7 +571,7 @@ export default function CustomerPage() {
                   return (
                     <div 
                       key={customer.id} 
-                      className="bg-white border border-slate-300 rounded-xl p-4 shadow-2xs space-y-3 w-full snap-start snap-always shrink-0"
+                      className="bg-white border border-slate-300 rounded-xl p-4 shadow-2xs space-y-3 w-full max-w-full snap-start snap-always shrink-0"
                     >
                       <div className="flex justify-between items-start border-b border-slate-200 pb-2 cursor-pointer select-none" onClick={() => toggleRowExpand(customer.id)}>
                         <div>
@@ -623,14 +610,16 @@ export default function CustomerPage() {
                         {!isLeft && customer.mobile ? <a href={`tel:${customer.mobile}`} className="bg-blue-600 hover:bg-blue-700 text-white text-center py-2 rounded-lg transition-colors shadow-2xs"><span>撥打手機</span></a> : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無手機</div>}
                         {!isLeft && customer.phone ? <a href={`tel:${customer.phone}`} className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-center py-2 rounded-lg shadow-2xs"><span>總機分機</span></a> : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無總機</div>}
                         {!isLeft && customer.line_id ? <button onClick={() => setActiveLineId(customer.line_id)} className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-center py-2 rounded-lg shadow-2xs"><span>LINE</span></button> : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無 LINE</div>}
-                        {customer.address ? <a href={`http://maps.google.com/?q=${encodeURIComponent(customer.address.split(/[\s\(\環境]/)[0])}`} target="_blank" rel="noopener noreferrer" className="bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-300 text-center py-2 rounded-lg shadow-2xs"><span>導航</span></a> : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無地址</div>}
+                        {customer.address ? (
+                          <a href={`http://maps.google.com/?q=${encodeURIComponent(customer.address.split(/[\s\(\環境]/)[0])}`} target="_blank" rel="noopener noreferrer" className="bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-300 text-center py-2 rounded-lg shadow-2xs"><span>導航</span></a>
+                        ) : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無地址</div>}
                       </div>
                     </div>
                   );
                 })}
               </div>
 
-              {/* 手機版分頁小圓點 */}
+              {/* 🧠 核心防跑版修正 C：小圓點地圖必須依據過濾後的長度「filteredCustomers」動態跑渲染，絕不取全量數據 */}
               <div className="flex justify-center items-center gap-1.5 mt-2 flex-wrap max-w-full px-4">
                 {filteredCustomers.map((_, idx) => (
                   <span 
@@ -667,7 +656,7 @@ export default function CustomerPage() {
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="md:col-span-2"><label className="block text-xs font-bold text-slate-600 mb-1">Company *</label><input type="text" name="company_name" required value={formData.company_name} onChange={handleInputChange} placeholder="e.g. TSMC" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-sm focus:ring-2 focus:ring-blue-600" /></div>
+                <div className="md:col-span-2"><label className="block text-xs font-bold text-slate-600 mb-1">Company *</label><input type="text" name="company_name" required value={formData.company_name} onChange={handleInputChange} placeholder="e.g. TSMC" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 font-bold focus:outline-none text-sm focus:ring-2 focus:ring-blue-600" /></div>
                 <div><label className="block text-xs font-bold text-slate-600 mb-1">Facility</label><input type="text" name="facility_name" value={formData.facility_name || ''} onChange={handleInputChange} placeholder="e.g. 中科廠" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-sm focus:ring-2 focus:ring-blue-600" /></div>
                 <div><label className="block text-xs font-bold text-slate-600 mb-1">Floor</label><input type="text" name="facility_floor" value={formData.facility_floor || ''} onChange={handleInputChange} placeholder="e.g. 3" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-sm focus:ring-2 focus:ring-blue-600" /></div>
               </div>
