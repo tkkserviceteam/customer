@@ -5,8 +5,6 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Customer, InsertCustomerInput } from '@/types/customer';
 import { taiwanDistricts } from '@/lib/taiwanDistricts';
-// 引入開源名片 OCR 套件
-import { createWorker } from 'tesseract.js';
 
 interface CustomerLog {
   id: string;
@@ -34,13 +32,6 @@ export default function CustomerPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null);
-
-  // 智慧匯入與快篩提取狀態
-  const [importLoading, setImportLoading] = useState(false);
-  const [extractedSuggestions, setExtractedSuggestions] = useState<{
-    phone?: string;
-    email?: string;
-  }>({});
 
   // Line QR Code Modal 狀態
   const [activeLineId, setActiveLineId] = useState<string | null>(null);
@@ -75,6 +66,7 @@ export default function CustomerPage() {
       const text = event.target?.result as string;
       if (!text) return;
 
+      // 使用 Regex 擷取 VCard 標準欄位
       const orgMatch = text.match(/ORG:(.*?)(?:\r?\n|;)/);
       const fnMatch = text.match(/FN:(.*?)(?:\r?\n|;)/);
       const telMatch = text.match(/TEL(?:;.*?):(.*)/);
@@ -90,99 +82,11 @@ export default function CustomerPage() {
         title: titleMatch ? titleMatch[1].trim() : prev.title,
       }));
 
-      alert('vCard (.vcf) 聯絡人解析完成！請檢查下方欄位。');
+      alert('vCard (.vcf) 電子名片解析完成！資訊已自動歸格。');
+      // 清空 input 讓同一個檔案可以重複觸發變更測試
+      e.target.value = '';
     };
     reader.readAsText(file);
-  };
-
-  // 🧠 核心優化：前端 Canvas 影像預處理濾鏡（灰階化 + 降噪高對比）
-  const preprocessImage = (file: File): Promise<string> => {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          if (!ctx) { resolve(event.target?.result as string); return; }
-
-          canvas.width = img.width;
-          canvas.height = img.height;
-          ctx.drawImage(img, 0, 0);
-
-          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const data = imgData.data;
-
-          // 走訪像素點進行高對比二值化處理
-          for (let i = 0; i < data.length; i += 4) {
-            const r = data[i];
-            const g = data[i + 1];
-            const b = data[i + 2];
-            // 灰階權重公式
-            const gray = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-            
-            // 提高對比度閾值：低於 130 變純黑，高於 130 變純白
-            const v = gray < 130 ? 0 : 255;
-            data[i] = v;     // R
-            data[i + 1] = v; // G
-            data[i + 2] = v; // B
-          }
-          ctx.putImageData(imgData, 0, 0);
-          resolve(canvas.toDataURL());
-        };
-        img.src = event.target?.result as string;
-      };
-      reader.readAsDataURL(file);
-    });
-  };
-
-  // 智慧匯入：名片圖片 OCR 辨識
-  const handleImageOcrImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      setImportLoading(true);
-      setExtractedSuggestions({});
-      
-      // 1. 先進濾鏡將圖片黑白高對比化
-      const processedImageUrl = await preprocessImage(file);
-
-      // 2. 送交 OCR 引擎辨識
-      const worker = await createWorker('chi_tra+eng');
-      const ret = await worker.recognize(processedImageUrl);
-      const ocrText = ret.data.text;
-      await worker.terminate();
-
-      if (!ocrText.trim()) {
-        alert('經過影像黑白過濾後仍未能辨識文字，請確保圖片文字清晰、無嚴重反光。');
-        return;
-      }
-
-      // 用 Regex 提取可能的手機或信箱
-      const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-      const phoneRegex = /(?:09\d{8})|(?:0\d{1,2}-\d{6,8})/g;
-      
-      const foundEmails = ocrText.match(emailRegex);
-      const foundPhones = ocrText.match(phoneRegex);
-
-      setExtractedSuggestions({
-        email: foundEmails ? foundEmails[0] : undefined,
-        phone: foundPhones ? foundPhones[0].replace(/[- ]/g, '') : undefined,
-      });
-
-      setFormData((prev) => ({
-        ...prev,
-        notes: `【名片自動 OCR 辨識結果】：\n${ocrText}\n\n${prev.notes || ''}`
-      }));
-
-      alert('名片已進行黑白去噪預處理並掃描完成！文字已提取至備註。');
-    } catch (error) {
-      console.error('OCR 失敗:', error);
-      alert('名片辨識發生錯誤，請稍後再試。');
-    } finally {
-      setImportLoading(false);
-    }
   };
 
   const updateAuthState = (session: any) => {
@@ -245,7 +149,7 @@ export default function CustomerPage() {
       setCustomers(data || []);
     } catch (error) {
       console.error('讀取資料失敗:', error);
-    } finally {
+    } finaly {
       setLoading(false);
     }
   };
@@ -277,7 +181,6 @@ export default function CustomerPage() {
 
   const handleOpenCreateModal = () => {
     setEditingCustomerId(null);
-    setExtractedSuggestions({});
     setFormData({ company_name: '', facility_name: '', facility_floor: '', contact_name: '', title: '', phone: '', extension: '', line_id: '', email: '', address: '', notes: '' });
     setCity(''); setDist(''); setDetailAddress('');
     setIsModalOpen(true);
@@ -285,7 +188,6 @@ export default function CustomerPage() {
 
   const handleOpenEditModal = (customer: Customer) => {
     setEditingCustomerId(customer.id);
-    setExtractedSuggestions({});
     setFormData({ company_name: customer.company_name, facility_name: customer.facility_name || '', facility_floor: customer.facility_floor || '', contact_name: customer.contact_name, title: customer.title || '', phone: customer.phone || '', extension: customer.extension || '', line_id: customer.line_id || '', email: customer.email || '', address: customer.address || '', notes: customer.notes || '' });
 
     let foundCity = ''; let foundDist = ''; let foundDetail = customer.address || '';
@@ -421,7 +323,7 @@ export default function CustomerPage() {
                           {customer.line_id ? <button onClick={() => setActiveLineId(customer.line_id)} className="text-green-400 hover:text-green-300 hover:underline flex items-center gap-1 font-medium transition-colors"><span>{customer.line_id}</span><span className="text-xs bg-green-950 text-green-400 border border-green-800 px-1.5 py-0.5 rounded">QR</span></button> : <span className="text-gray-500">--</span>}
                         </td>
                         <td className="p-4 max-w-xs">
-                          {customer.address ? <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address.split(/[\s\(\環境]/)[0])}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1 transition-colors truncate">{customer.address}</a> : <span className="text-gray-500">--</span>}
+                          {customer.address ? <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address.split(/[\s\(\（]/)[0])}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1 transition-colors truncate">{customer.address}</a> : <span className="text-gray-500">--</span>}
                         </td>
                         <td className="p-4 text-gray-400 max-w-xs truncate" title={customer.notes || ''}>{customer.notes || '--'}</td>
                         {isAdmin && (
@@ -465,7 +367,7 @@ export default function CustomerPage() {
                   <div className="grid grid-cols-3 gap-2 pt-1">
                     {customer.phone ? <a href={`tel:${customer.phone}`} className="bg-blue-900/60 hover:bg-blue-900 text-blue-300 border border-blue-800 text-center py-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center gap-0.5 transition-colors"><span className="text-[10px] text-blue-400 font-mono">撥打總機</span><span className="truncate max-w-full px-1">{customer.phone}{customer.extension ? `#${customer.extension}` : ''}</span></a> : <div className="bg-gray-850 text-gray-600 border border-gray-800 text-center py-2 rounded-lg text-xs flex items-center justify-center">無電話</div>}
                     {customer.line_id ? <button onClick={() => setActiveLineId(customer.line_id)} className="bg-green-900/60 hover:bg-green-900 text-green-300 border border-green-800 text-center py-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center gap-0.5 transition-colors"><span className="text-[10px] text-green-400">LINE 掃碼</span><span className="truncate max-w-full px-1">{customer.line_id}</span></button> : <div className="bg-gray-850 text-gray-600 border border-gray-800 text-center py-2 rounded-lg text-xs flex items-center justify-center">無 LINE</div>}
-                    {customer.address ? <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address.split(/[\s\(\環境]/)[0])}`} target="_blank" rel="noopener noreferrer" className="bg-purple-900/60 hover:bg-purple-900 text-purple-300 border border-purple-800 text-center py-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center gap-0.5 transition-colors"><span className="text-[10px] text-purple-400">Google</span><span>開啟導航</span></a> : <div className="bg-gray-850 text-gray-600 border border-gray-800 text-center py-2 rounded-lg text-xs flex items-center justify-center">無地址</div>}
+                    {customer.address ? <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address.split(/[\s\(\（]/)[0])}`} target="_blank" rel="noopener noreferrer" className="bg-purple-900/60 hover:bg-purple-900 text-purple-300 border border-purple-800 text-center py-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center gap-0.5 transition-colors"><span className="text-[10px] text-purple-400">Google</span><span>開啟導航</span></a> : <div className="bg-gray-850 text-gray-600 border border-gray-800 text-center py-2 rounded-lg text-xs flex items-center justify-center">無地址</div>}
                   </div>
                 </div>
               ))}
@@ -484,22 +386,15 @@ export default function CustomerPage() {
             </div>
             <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-4 max-h-[80vh] overflow-y-auto">
               
-              {/* 管理員智慧快捷匯入專區 */}
+              {/* ==================== 🛠️ 電子名片快捷匯入專區 (僅在新增時顯示) ==================== */}
               {!editingCustomerId && (
-                <div className="bg-gray-850 border border-dashed border-gray-600 rounded-xl p-3 md:p-4 space-y-3">
+                <div className="bg-gray-850 border border-dashed border-gray-600 rounded-xl p-3 md:p-4 space-y-2">
                   <div className="text-xs font-bold text-blue-400 tracking-wider flex items-center gap-1.5">
-                    <span>⚡ 管理員智慧表單快捷匯入</span>
-                    {importLoading && <span className="text-amber-400 text-[11px] animate-pulse">(影像加壓去噪中，請稍候...)</span>}
+                    <span>⚡ 管理員電子名片快捷匯入</span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                    <div className="bg-gray-800 p-2.5 rounded-lg border border-gray-700">
-                      <label className="block text-gray-400 mb-1.5 font-medium">① 匯入電子名片 (.vcf)</label>
-                      <input type="file" accept=".vcf" onChange={handleVcfImport} disabled={importLoading} className="w-full text-[11px] text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-semibold file:bg-blue-950 file:text-blue-400 hover:file:bg-blue-900 cursor-pointer disabled:opacity-40" />
-                    </div>
-                    <div className="bg-gray-800 p-2.5 rounded-lg border border-gray-700">
-                      <label className="block text-gray-400 mb-1.5 font-medium">② 濾鏡掃描實體名片 (強效黑白 OCR)</label>
-                      <input type="file" accept="image/*" onChange={handleImageOcrImport} disabled={importLoading} className="w-full text-[11px] text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-semibold file:bg-purple-950 file:text-purple-400 hover:file:bg-purple-900 cursor-pointer disabled:opacity-40" />
-                    </div>
+                  <div className="bg-gray-800 p-2.5 rounded-lg border border-gray-700 text-xs">
+                    <label className="block text-gray-400 mb-1.5 font-medium">選擇並上傳電子名片檔 (.vcf)</label>
+                    <input type="file" accept=".vcf" onChange={handleVcfImport} className="w-full text-[11px] text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-semibold file:bg-blue-950 file:text-blue-400 hover:file:bg-blue-900 cursor-pointer" />
                   </div>
                 </div>
               )}
@@ -514,50 +409,13 @@ export default function CustomerPage() {
                 <div><label className="block text-xs font-medium text-gray-400 mb-1">Contact Name *</label><input type="text" name="contact_name" required value={formData.contact_name} onChange={handleInputChange} placeholder="Name" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" /></div>
                 <div><label className="block text-xs font-medium text-gray-400 mb-1">Title</label><input type="text" name="title" value={formData.title || ''} onChange={handleInputChange} placeholder="Title" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" /></div>
               </div>
-              
-              {/* 電話與 Email 欄位整合智慧快篩提取按鈕 */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="md:col-span-2">
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="block text-xs font-medium text-gray-400">Phone</label>
-                    {extractedSuggestions.phone && (
-                      <button 
-                        type="button" 
-                        onClick={() => {
-                          setFormData(prev => ({ ...prev, phone: extractedSuggestions.phone! }));
-                          setExtractedSuggestions(prev => ({ ...prev, phone: undefined }));
-                        }}
-                        className="text-[10px] bg-blue-950 text-blue-400 border border-blue-800 px-1.5 py-0.5 rounded font-bold animate-bounce"
-                      >
-                        ⚡ 填入名片電話: {extractedSuggestions.phone}
-                      </button>
-                    )}
-                  </div>
-                  <input type="text" name="phone" value={formData.phone || ''} onChange={handleInputChange} placeholder="Phone" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" />
-                </div>
+                <div className="md:col-span-2"><label className="block text-xs font-medium text-gray-400 mb-1">Phone</label><input type="text" name="phone" value={formData.phone || ''} onChange={handleInputChange} placeholder="Phone" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" /></div>
                 <div><label className="block text-xs font-medium text-gray-400 mb-1">Ext.</label><input type="text" name="extension" value={formData.extension || ''} onChange={handleInputChange} placeholder="Ext" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" /></div>
                 <div><label className="block text-xs font-medium text-gray-400 mb-1">Line ID</label><input type="text" name="line_id" value={formData.line_id || ''} onChange={handleInputChange} placeholder="Line ID" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" /></div>
               </div>
+              <div><label className="block text-xs font-medium text-gray-400 mb-1">Email</label><input type="email" name="email" value={formData.email || ''} onChange={handleInputChange} placeholder="Email" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" /></div>
               
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="block text-xs font-medium text-gray-400">Email</label>
-                  {extractedSuggestions.email && (
-                    <button 
-                      type="button" 
-                      onClick={() => {
-                        setFormData(prev => ({ ...prev, email: extractedSuggestions.email! }));
-                        setExtractedSuggestions(prev => ({ ...prev, email: undefined }));
-                      }}
-                      className="text-[10px] bg-purple-950 text-purple-400 border border-purple-800 px-1.5 py-0.5 rounded font-bold animate-bounce"
-                    >
-                      ⚡ 填入名片 Email: {extractedSuggestions.email}
-                    </button>
-                  )}
-                </div>
-                <input type="email" name="email" value={formData.email || ''} onChange={handleInputChange} placeholder="Email" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" />
-              </div>
-
               <div className="space-y-2">
                 <label className="block text-xs font-medium text-gray-400">Address</label>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -569,7 +427,7 @@ export default function CustomerPage() {
               <div><label className="block text-xs font-medium text-gray-400 mb-1">Notes</label><textarea name="notes" rows={5} value={formData.notes || ''} onChange={handleInputChange} placeholder="Notes..." className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none resize-none font-mono text-xs leading-relaxed" /></div>
               <div className="pt-4 border-t border-gray-700 flex justify-end gap-3">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg font-medium">取消</button>
-                <button type="submit" disabled={isSubmitting || importLoading} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium disabled:opacity-50">{isSubmitting ? '儲存中...' : editingCustomerId ? '確認更新' : '確認新增'}</button>
+                <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium disabled:opacity-50">{isSubmitting ? '儲存中...' : editingCustomerId ? '確認更新' : '確認新增'}</button>
               </div>
             </form>
           </div>
@@ -601,7 +459,7 @@ export default function CustomerPage() {
           <span className="text-[10px] text-gray-500 font-mono">Realtime</span>
         </div>
         <div className="p-3 space-y-2 max-h-60 overflow-y-auto divide-y divide-gray-800">
-          {logs.length === 0 ? (
+          {customers.length === 0 ? (
             <div className="text-center py-6 text-xs text-gray-500">暫無近日變更紀錄</div>
           ) : (
             logs.map((log, index) => (
