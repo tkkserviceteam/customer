@@ -210,7 +210,6 @@ export default function CustomerPage() {
     }
   };
 
-  // 監聽：點擊右下角日誌面板以外的地方自動收回收合
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
       if (logPanelRef.current && !logPanelRef.current.contains(event.target as Node)) {
@@ -299,6 +298,7 @@ export default function CustomerPage() {
       email: customer.email || '', 
       address: customer.address || '', 
       notes: customer.notes || '',
+      // 🧠 核心修正：還原回正統的 '在職'，徹底解除登入權限鎖定的阻斷
       status: customer.status || '在職',
       mobile: customer.mobile || ''
     });
@@ -396,71 +396,71 @@ export default function CustomerPage() {
   });
 
   if (!isMounted) {
-    return <div className="min-h-screen bg-gray-900 text-gray-400 flex items-center justify-center text-sm">系統初始化安全驗證中...</div>;
+    return <div className="min-h-screen bg-slate-50 text-slate-500 flex items-center justify-center text-sm">系統初始化安全驗證中...</div>;
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100 p-4 md:p-12 pb-32 overflow-x-hidden">
+    <div className="min-h-screen bg-slate-50 text-slate-900 p-4 md:p-12 pb-32 overflow-x-hidden font-sans select-none">
       <div className="max-w-7xl mx-auto">
         
         {/* Top Title Bar */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8 border-b border-slate-200 pb-6">
           <div>
-            <h1 className="text-xl md:text-2xl font-bold tracking-tight text-white">客戶通訊錄管理系統</h1>
+            <h1 className="text-xl md:text-2xl font-bold tracking-wide text-black">客戶通訊錄管理系統</h1>
             <div className="text-xs md:text-sm mt-1 flex flex-wrap items-center gap-2">
               {isAdmin ? (
                 <>
-                  <span className="text-green-400">🟢 歡迎管理員 [{operatorName}] 登入模式 (10分閒置安全防護中)</span>
+                  <span className="text-blue-700 font-bold font-mono">🟢 歡迎管理員 [{operatorName}] 登入模式 (10分閒置安全防護中)</span>
                   <button 
                     onClick={() => setIsPwdModalOpen(true)}
-                    className="text-[11px] bg-gray-800 text-amber-400 border border-amber-900/50 px-2 py-0.5 rounded hover:bg-gray-750 transition-colors"
+                    className="text-[11px] bg-white text-amber-700 border border-slate-400 px-2 py-0.5 rounded hover:bg-slate-100 transition-colors font-mono font-semibold shadow-2xs"
                   >
                     🔐 修改密碼
                   </button>
                 </>
               ) : (
-                <span className="text-gray-400">🔵 訪客唯讀模式</span>
+                <span className="text-slate-600 font-medium">🔵 訪客唯讀模式</span>
               )}
             </div>
           </div>
           <div className="flex gap-2 md:gap-3">
             {isAdmin ? (
               <>
-                <button onClick={handleOpenCreateModal} className="flex-1 md:flex-initial bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 text-sm md:text-base rounded-lg font-medium shadow transition-colors">+ 新增客戶</button>
-                <button onClick={handleLogout} className="flex-1 md:flex-initial bg-gray-700 hover:bg-gray-600 text-gray-300 px-3 py-2 text-sm md:text-base rounded-lg font-medium shadow transition-colors">安全登出</button>
+                <button onClick={handleOpenCreateModal} className="flex-1 md:flex-initial bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-sm md:text-base rounded-lg font-bold shadow transition-colors tracking-wide">+ 新增客戶</button>
+                <button onClick={handleLogout} className="flex-1 md:flex-initial bg-white border border-slate-400 text-slate-700 hover:bg-slate-100 px-4 py-2 text-sm md:text-base rounded-lg font-bold shadow transition-colors">安全登出</button>
               </>
             ) : (
-              <button onClick={() => router.push('/login')} className="w-full md:w-auto bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 px-4 py-2 text-sm md:text-base rounded-lg font-medium shadow transition-colors">管理員登入</button>
+              <button onClick={() => router.push('/login')} className="w-full md:w-auto bg-white hover:bg-slate-100 text-slate-800 border border-slate-400 px-4 py-2 text-sm md:text-base rounded-lg font-bold shadow transition-colors">管理員登入</button>
             )}
           </div>
         </div>
 
         {/* 工具列區塊 */}
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <input type="text" placeholder="搜尋公司、廠區、聯絡人..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full md:w-96 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <input type="text" placeholder="搜尋公司、廠區、聯絡人..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full md:w-96 px-4 py-2 bg-white border border-slate-400 rounded-lg text-black text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-blue-600 font-medium placeholder-slate-500 shadow-2xs" />
           
           {!isAdmin && (
-            <label className="flex items-center gap-2 text-xs md:text-sm text-gray-400 cursor-pointer select-none bg-gray-800 border border-gray-700 px-3 py-2 rounded-lg hover:border-gray-600 transition-colors">
-              <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} className="rounded bg-gray-700 border-gray-600 text-blue-600 focus:ring-0 w-4 h-4" />
+            <label className="flex items-center gap-2 text-xs md:text-sm text-slate-800 font-bold cursor-pointer select-none bg-white border border-slate-400 rounded-lg px-3 py-2 hover:bg-slate-50 transition-colors shadow-2xs">
+              <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} className="rounded bg-slate-100 border-slate-400 text-blue-600 focus:ring-0 w-4 h-4" />
               <span>顯示已離職窗口人員</span>
             </label>
           )}
         </div>
 
         {loading ? (
-          <div className="text-center py-12 text-gray-400">資料載入中...</div>
+          <div className="text-center py-12 text-slate-600 font-bold font-mono">資料載入中...</div>
         ) : filteredCustomers.length === 0 ? (
-          <div className="text-center py-12 text-gray-400">找不到客戶資料</div>
+          <div className="text-center py-12 text-slate-600 font-bold font-mono">找不到客戶資料</div>
         ) : (
           <>
             {/* 1. Desktop Table */}
-            <div className="hidden md:block bg-gray-800 border border-gray-700 rounded-xl overflow-hidden shadow-xl">
+            <div className="hidden md:block bg-white border border-slate-300 rounded-xl overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-gray-750 border-b border-gray-700 text-gray-400 text-sm font-medium">
+                    <tr className="bg-slate-100 border-b border-slate-300 text-slate-800 text-sm font-bold tracking-wide">
                       <th className="p-4 w-24">現況</th>
-                      <th className="p-4 cursor-pointer hover:text-gray-200 select-none">Company / 廠區 / 樓層 (點擊展開)</th>
+                      <th className="p-4 cursor-pointer hover:text-black select-none">Company / 廠區 / 樓層 (點擊展開)</th>
                       <th className="p-4">聯絡人 / 職稱</th>
                       <th className="p-4">行動電話 (手機)</th>
                       <th className="p-4">聯絡電話 (分機)</th>
@@ -468,58 +468,58 @@ export default function CustomerPage() {
                       {isAdmin && <th className="p-4 text-center w-32">操作</th>}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-700 text-sm">
+                  <tbody className="divide-y divide-slate-300 text-sm font-medium text-slate-900">
                     {filteredCustomers.map((customer) => {
                       const isLeft = customer.status === '離職';
                       const isExpanded = !!expandedCustomerIds[customer.id];
                       return (
                         <>
-                          <tr key={customer.id} className={`transition-colors ${isLeft ? 'bg-gray-850/40 opacity-50' : 'hover:bg-gray-750'}`}>
+                          <tr key={customer.id} className={`transition-colors ${isLeft ? 'bg-slate-100/80 opacity-50' : 'hover:bg-slate-50'}`}>
                             <td className="p-4 whitespace-nowrap">
-                              <span className={`px-2 py-0.5 text-xs font-bold rounded-md ${isLeft ? 'bg-red-950 text-red-400 border border-red-900/60' : 'bg-green-950 text-green-400 border border-green-900/60'} border`}>
+                              <span className={`px-2 py-0.5 text-xs font-bold rounded-md ${isLeft ? 'bg-rose-100 text-rose-800 border border-rose-300' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'} border`}>
                                 {customer.status || '在職'}
                               </span>
                             </td>
                             <td className="p-4 cursor-pointer select-none group" onClick={() => toggleRowExpand(customer.id)}>
                               <div className="flex items-center gap-2">
-                                <span className={`text-xs text-gray-500 group-hover:text-blue-400 transition-transform duration-200 ${isExpanded ? 'rotate-90 text-blue-400' : ''}`}>▶</span>
-                                <div className={`font-semibold ${isLeft ? 'text-gray-400' : 'text-white group-hover:text-blue-400 transition-colors'}`}>{customer.company_name}</div>
+                                <span className={`text-xs text-slate-400 group-hover:text-blue-600 transition-transform duration-200 ${isExpanded ? 'rotate-90 text-blue-600' : ''}`}>▶</span>
+                                <div className={`font-bold ${isLeft ? 'text-slate-500' : 'text-black group-hover:text-blue-600 transition-colors'}`}>{customer.company_name}</div>
                               </div>
-                              <div className="text-xs text-gray-400 mt-0.5 ml-4">{customer.facility_name || '--'} {customer.facility_floor ? `(${customer.facility_floor}F)` : ''}</div>
+                              <div className="text-xs text-slate-600 font-bold mt-0.5 ml-4 font-mono">{customer.facility_name || '--'} {customer.facility_floor ? `(${customer.facility_floor}F)` : ''}</div>
                             </td>
                             <td className="p-4">
-                              <div className={isLeft ? 'text-gray-400' : 'text-gray-200'}>{customer.contact_name}</div>
-                              <div className="text-xs text-gray-400 mt-0.5">{customer.title || '--'}</div>
+                              <div className={`font-bold ${isLeft ? 'text-slate-500' : 'text-slate-900'}`}>{customer.contact_name}</div>
+                              <div className="text-xs text-slate-600 font-semibold mt-0.5">{customer.title || '--'}</div>
                             </td>
-                            <td className="p-4 text-amber-400 font-mono font-semibold">
-                              {!isLeft && customer.mobile ? <a href={`tel:${customer.mobile}`} className="hover:text-amber-300 hover:underline transition-colors">{formatMobileDisplay(customer.mobile)}</a> : <span className="text-gray-500">{formatMobileDisplay(customer.mobile)}</span>}
+                            <td className="p-4 text-blue-700 font-mono font-bold tracking-wide">
+                              {!isLeft && customer.mobile ? <a href={`tel:${customer.mobile}`} className="hover:text-blue-600 hover:underline transition-colors">{formatMobileDisplay(customer.mobile)}</a> : <span className="text-slate-400">{formatMobileDisplay(customer.mobile)}</span>}
                             </td>
-                            <td className="p-4 text-gray-300 font-mono">
-                              {!isLeft && customer.phone ? <a href={`tel:${customer.phone}`} className="text-blue-400 hover:text-blue-300 hover:underline transition-colors">{formatPhoneDisplay(customer.phone)}{customer.extension ? ` #${customer.extension}` : ''}</a> : <span className="text-gray-500">{formatPhoneDisplay(customer.phone) || '--'}</span>}
+                            <td className="p-4 text-slate-900 font-mono font-medium">
+                              {!isLeft && customer.phone ? <a href={`tel:${customer.phone}`} className="text-blue-700 hover:text-blue-600 hover:underline transition-colors">{formatPhoneDisplay(customer.phone)}{customer.extension ? ` #${customer.extension}` : ''}</a> : <span className="text-slate-400">{formatPhoneDisplay(customer.phone) || '--'}</span>}
                             </td>
-                            <td className="p-4">
-                              {!isLeft && customer.line_id ? <button onClick={() => setActiveLineId(customer.line_id)} className="text-green-400 hover:text-green-300 hover:underline flex items-center gap-1 font-medium transition-colors"><span>{customer.line_id}</span><span className="text-xs bg-green-950 text-green-400 border border-green-800 px-1.5 py-0.5 rounded">QR</span></button> : <span className="text-gray-500">{customer.line_id || '--'}</span>}
+                            <td className="p-4 font-mono font-semibold">
+                              {!isLeft && customer.line_id ? <button onClick={() => setActiveLineId(customer.line_id)} className="text-emerald-700 hover:text-emerald-600 hover:underline flex items-center gap-1 font-bold transition-colors"><span>{customer.line_id}</span><span className="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-1.5 py-0.2 rounded font-bold">QR</span></button> : <span className="text-slate-400">{customer.line_id || '--'}</span>}
                             </td>
                             {isAdmin && (
-                              <td className="p-4 text-center space-x-2 whitespace-nowrap">
-                                <button onClick={() => handleOpenEditModal(customer)} className="text-amber-400 hover:text-amber-300 hover:underline font-medium transition-colors">編輯</button>
-                                <span className="text-gray-600">|</span>
-                                <button onClick={() => handleDeleteCustomer(customer.id, customer.contact_name, customer.company_name)} className="text-red-400 hover:text-red-300 hover:underline font-medium transition-colors">刪除</button>
+                              <td className="p-4 text-center space-x-2 whitespace-nowrap text-xs font-bold">
+                                <button onClick={() => handleOpenEditModal(customer)} className="text-amber-700 hover:text-amber-600 transition-colors">編輯</button>
+                                <span className="text-slate-400">|</span>
+                                <button onClick={() => handleDeleteCustomer(customer.id, customer.contact_name, customer.company_name)} className="text-red-600 hover:text-red-500 transition-colors">刪除</button>
                               </td>
                             )}
                           </tr>
                           {isExpanded && (
-                            <tr className="bg-gray-850/60 animate-in fade-in slide-in-from-top-2 duration-200">
-                              <td colSpan={isAdmin ? 7 : 6} className="p-4 border-l-2 border-blue-500">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-gray-300">
-                                  <div className="space-y-2">
-                                    <h4 className="text-xs font-bold tracking-wider text-gray-400 uppercase">詳細聯絡資訊</h4>
-                                    <div><span className="text-gray-500 mr-2">電子郵件:</span>{customer.email ? <a href={`mailto:${customer.email}`} className="text-blue-400 hover:underline">{customer.email}</a> : <span className="text-gray-600">未提供</span>}</div>
-                                    <div><span className="text-gray-500 mr-2">公司地址:</span>{customer.address ? <a href={`http://maps.google.com/?q=${encodeURIComponent(customer.address.split(/[\s\(\（]/)[0])}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline inline-flex items-center gap-1">{customer.address}<span className="text-[10px] bg-purple-950 text-purple-400 border border-purple-900 px-1 rounded">地圖</span></a> : <span className="text-gray-600">未提供</span>}</div>
+                            <tr className="bg-slate-100/50 animate-in fade-in slide-in-from-top-2 duration-200">
+                              <td colSpan={isAdmin ? 7 : 6} className="p-4 border-l-2 border-blue-600">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-slate-900 font-semibold">
+                                  <div className="space-y-2 text-xs">
+                                    <h4 className="text-[11px] font-bold tracking-wider text-slate-400 uppercase border-b border-slate-300 pb-1">詳細聯絡資訊</h4>
+                                    <div><span className="text-slate-500 font-bold mr-2">電子郵件:</span>{customer.email ? <a href={`mailto:${customer.email}`} className="text-blue-700 font-bold hover:underline">{customer.email}</a> : <span className="text-slate-400">未提供</span>}</div>
+                                    <div><span className="text-slate-500 font-bold mr-2">公司地址:</span>{customer.address ? <a href={`http://maps.google.com/?q=${encodeURIComponent(customer.address.split(/[\s\(\（]/)[0])}`} target="_blank" rel="noopener noreferrer" className="text-blue-700 font-bold hover:underline inline-flex items-center gap-1">{customer.address}<span className="text-[10px] bg-purple-100 text-purple-800 border border-purple-300 px-1 rounded font-bold">地圖</span></a> : <span className="text-slate-400">未提供</span>}</div>
                                   </div>
                                   <div className="space-y-2">
-                                    <h4 className="text-xs font-bold tracking-wider text-gray-400 uppercase">備註說明</h4>
-                                    <div className="bg-gray-900/40 p-3 rounded-lg border border-gray-750 text-gray-300 whitespace-pre-wrap leading-relaxed font-mono text-xs">{customer.notes || '暫無額外備註說明資訊。'}</div>
+                                    <h4 className="text-[11px] font-bold tracking-wider text-slate-400 uppercase border-b border-slate-300 pb-1">備註說明</h4>
+                                    <div className="bg-white p-3 rounded-lg border border-slate-300 text-slate-900 font-mono text-xs shadow-2xs leading-relaxed font-medium">{customer.notes || '暫無額外備註說明資訊。'}</div>
                                   </div>
                                 </div>
                               </td>
@@ -539,44 +539,44 @@ export default function CustomerPage() {
                 const isLeft = customer.status === '離職';
                 const isExpanded = !!expandedCustomerIds[customer.id];
                 return (
-                  <div key={customer.id} className="bg-gray-800 border rounded-xl p-4 shadow-md space-y-3 border-gray-700">
-                    <div className="flex justify-between items-start border-b border-gray-700 pb-2 cursor-pointer select-none" onClick={() => toggleRowExpand(customer.id)}>
+                  <div key={customer.id} className="bg-white border border-slate-300 rounded-xl p-4 shadow-2xs space-y-3">
+                    <div className="flex justify-between items-start border-b border-slate-200 pb-2 cursor-pointer select-none" onClick={() => toggleRowExpand(customer.id)}>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className={`px-1.5 py-0.2 text-[10px] font-bold rounded ${isLeft ? 'bg-red-950 text-red-400 border border-red-900' : 'bg-green-950 text-green-400 border border-green-900'} border`}>{customer.status || '在職'}</span>
-                          <div className="text-base font-bold text-white flex items-center gap-1.5">
-                            <span className={`text-[10px] text-gray-500 transition-transform ${isExpanded ? 'rotate-90 text-blue-400' : ''}`}>▶</span>
-                            <span className={isExpanded ? 'text-blue-400' : ''}>{customer.company_name}</span>
+                          <span className={`px-1.5 py-0.2 text-[10px] font-bold rounded ${isLeft ? 'bg-rose-100 text-rose-800 border border-rose-300' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'} border font-mono`}>{customer.status || '在職'}</span>
+                          <div className="text-base font-bold text-black flex items-center gap-1.5">
+                            <span className={`text-[10px] text-slate-400 transition-transform ${isExpanded ? 'rotate-90 text-blue-600' : ''}`}>▶</span>
+                            <span className={isExpanded ? 'text-blue-600' : ''}>{customer.company_name}</span>
                           </div>
                         </div>
-                        <div className="text-xs text-gray-400 mt-1 ml-3.5">{customer.facility_name || '無特定廠區'} {customer.facility_floor ? ` • ${customer.facility_floor}F` : ''}</div>
+                        <div className="text-xs text-slate-600 font-bold mt-1 ml-3.5">{customer.facility_name || '無特定廠區'} {customer.facility_floor ? ` • ${customer.facility_floor}F` : ''}</div>
                       </div>
                       {isAdmin && (
                         <div className="flex gap-2 text-xs" onClick={(e) => e.stopPropagation()}>
-                          <button onClick={() => handleOpenEditModal(customer)} className="text-amber-400 font-semibold bg-amber-950/40 px-2 py-1 rounded border border-amber-900/60">編輯</button>
+                          <button onClick={() => handleOpenEditModal(customer)} className="text-amber-800 font-bold bg-amber-50 px-2 py-1 rounded border border-amber-300">編輯</button>
                         </div>
                       )}
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-sm bg-gray-750 p-2.5 rounded-lg">
-                      <div><span className="text-xs text-gray-400 block mb-0.5">聯絡窗口</span><span className="text-gray-200 font-medium">{customer.contact_name}</span></div>
-                      <div><span className="text-xs text-gray-400 block mb-0.5">職稱</span><span className="text-gray-300">{customer.title || '--'}</span></div>
+                    <div className="grid grid-cols-2 gap-2 text-sm bg-slate-50 p-2.5 rounded-lg font-semibold">
+                      <div><span className="text-xs text-slate-500 block mb-0.5">聯絡窗口</span><span className="text-black font-bold">{customer.contact_name}</span></div>
+                      <div><span className="text-xs text-slate-500 block mb-0.5">職稱</span><span className="text-slate-600 font-mono">{customer.title || '--'}</span></div>
                     </div>
-                    <div className="text-xs space-y-1 bg-gray-900/40 p-2 rounded-lg font-mono">
-                      {customer.mobile && <div><span className="text-amber-500">手機：</span>{formatMobileDisplay(customer.mobile)}</div>}
-                      {customer.phone && <div><span className="text-blue-400">總機：</span>{formatPhoneDisplay(customer.phone)}{customer.extension ? ` #${customer.extension}` : ''}</div>}
+                    <div className="text-xs space-y-1 bg-slate-50 p-2 rounded-lg font-mono font-bold">
+                      {customer.mobile && <div><span className="text-blue-700">手機：</span>{formatMobileDisplay(customer.mobile)}</div>}
+                      {customer.phone && <div><span className="text-slate-700">總機：</span>{formatPhoneDisplay(customer.phone)}{customer.extension ? ` #${customer.extension}` : ''}</div>}
                     </div>
                     {isExpanded && (
-                      <div className="pt-2 border-t border-gray-700 space-y-2 text-xs animate-in fade-in slide-in-from-top-1 duration-200">
-                        {customer.email && <div><span className="text-gray-500 block mb-0.5">Email：</span><a href={`mailto:${customer.email}`} className="text-blue-400 underline break-all">{customer.email}</a></div>}
-                        {customer.address && <div><span className="text-gray-500 block mb-0.5">完整地址：</span><div className="text-gray-300 leading-relaxed">{customer.address}</div></div>}
-                        <div><span className="text-gray-500 block mb-0.5">備註說明：</span><div className="bg-gray-900/60 p-2 rounded border border-gray-750 text-gray-400 font-mono text-[11px] whitespace-pre-wrap leading-normal">{customer.notes || '暫無備註資訊'}</div></div>
+                      <div className="pt-2 border-t border-slate-200 space-y-2 text-xs animate-in fade-in slide-in-from-top-1 duration-200 font-semibold">
+                        {customer.email && <div><span className="text-slate-400 block mb-0.5">Email：</span><a href={`mailto:${customer.email}`} className="text-blue-700 font-bold underline break-all">{customer.email}</a></div>}
+                        {customer.address && <div><span className="text-slate-400 block mb-0.5">完整地址：</span><div className="text-slate-800 leading-relaxed font-bold">{customer.address}</div></div>}
+                        <div><span className="text-slate-400 block mb-0.5">備註說明：</span><div className="bg-white p-2 rounded border border-slate-200 text-slate-800 text-[11px] whitespace-pre-wrap leading-normal shadow-2xs font-medium">{customer.notes || '暫無備註資訊'}</div></div>
                       </div>
                     )}
-                    <div className="grid grid-cols-4 gap-1.5 pt-1">
-                      {!isLeft && customer.mobile ? <a href={`tel:${customer.mobile}`} className="bg-amber-600 hover:bg-amber-500 text-white text-center py-2 rounded-lg text-[11px] font-bold transition-colors"><span>撥打手機</span></a> : <div className="bg-gray-550 text-gray-500 border border-gray-800 text-center py-2 rounded-lg text-[11px] flex items-center justify-center">無手機</div>}
-                      {!isLeft && customer.phone ? <a href={`tel:${customer.phone}`} className="bg-blue-900/60 hover:bg-blue-900 text-blue-300 border border-blue-800 text-center py-2 rounded-lg text-[11px] font-medium flex flex-col items-center justify-center gap-0.5"><span className="text-[9px] text-blue-400">總機分機</span></a> : <div className="bg-gray-550 text-gray-500 border border-gray-800 text-center py-2 rounded-lg text-[11px] flex items-center justify-center">無總機</div>}
-                      {!isLeft && customer.line_id ? <button onClick={() => setActiveLineId(customer.line_id)} className="bg-green-900/60 hover:bg-green-900 text-green-300 border border-green-800 text-center py-2 rounded-lg text-[11px] font-medium flex flex-col items-center justify-center gap-0.5"><span className="text-[9px] text-green-400">LINE</span></button> : <div className="bg-gray-550 text-gray-500 border border-gray-800 text-center py-2 rounded-lg text-[11px] flex items-center justify-center">無 LINE</div>}
-                      {customer.address ? <a href={`http://maps.google.com/?q=${encodeURIComponent(customer.address.split(/[\s\(\環境]/)[0])}`} target="_blank" rel="noopener noreferrer" className="bg-purple-900/60 hover:bg-purple-900 text-purple-300 border border-purple-800 text-center py-2 rounded-lg text-[11px] font-medium flex flex-col items-center justify-center gap-0.5"><span className="text-[9px] text-purple-400">導航</span></a> : <div className="bg-gray-850 text-gray-600 border border-gray-800 text-center py-2 rounded-lg text-[11px] flex items-center justify-center">無地址</div>}
+                    <div className="grid grid-cols-4 gap-1.5 pt-1 font-mono text-[11px] font-bold">
+                      {!isLeft && customer.mobile ? <a href={`tel:${customer.mobile}`} className="bg-blue-600 hover:bg-blue-700 text-white text-center py-2 rounded-lg transition-colors shadow-2xs"><span>撥打手機</span></a> : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無手機</div>}
+                      {!isLeft && customer.phone ? <a href={`tel:${customer.phone}`} className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-center py-2 rounded-lg shadow-2xs"><span>總機分機</span></a> : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無總機</div>}
+                      {!isLeft && customer.line_id ? <button onClick={() => setActiveLineId(customer.line_id)} className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-center py-2 rounded-lg shadow-2xs"><span>LINE</span></button> : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無 LINE</div>}
+                      {customer.address ? <a href={`http://maps.google.com/?q=${encodeURIComponent(customer.address.split(/[\s\(\環境]/)[0])}`} target="_blank" rel="noopener noreferrer" className="bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-300 text-center py-2 rounded-lg shadow-2xs"><span>導航</span></a> : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無地址</div>}
                     </div>
                   </div>
                 );
@@ -588,37 +588,35 @@ export default function CustomerPage() {
 
       {/* 中央彈出視窗 (Modal) */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-2xl bg-gray-800 border border-gray-700 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="px-6 py-4 border-b border-gray-700 flex items-center justify-between bg-gray-850">
-              <h2 className="text-lg font-bold text-white">{editingCustomerId ? '修改客戶通訊資料' : '新增客戶通訊資料'}</h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-white transition-colors text-xl">✕</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
+          <div className="w-full max-w-2xl bg-white border border-slate-300 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 text-black font-semibold">
+            <div className="px-6 py-4 border-b border-slate-300 flex items-center justify-between bg-slate-100">
+              <h2 className="text-lg font-bold text-slate-900 tracking-wide">{editingCustomerId ? '修改客戶通訊資料' : '新增客戶通訊資料'}</h2>
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-700 transition-colors text-xl">✕</button>
             </div>
             <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-4 max-h-[80vh] overflow-y-auto">
               
-              {/* 電子名片快捷匯入 */}
               {!editingCustomerId && (
-                <div className="bg-gray-850 border border-dashed border-gray-600 rounded-xl p-3 md:p-4 space-y-2">
-                  <div className="text-xs font-bold text-blue-400 tracking-wider">⚡ 管理員電子名片快捷匯入</div>
-                  <div className="bg-gray-800 p-2.5 rounded-lg border border-gray-700 text-xs">
-                    <label className="block text-gray-400 mb-1.5 font-medium">選擇並上傳電子名片檔 (.vcf)</label>
-                    <input type="file" accept=".vcf" onChange={handleVcfImport} className="w-full text-[11px] text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-semibold file:bg-blue-950 file:text-blue-400 hover:file:bg-blue-900 cursor-pointer" />
+                <div className="bg-slate-50 border border-dashed border-slate-400 rounded-xl p-3 md:p-4 space-y-2">
+                  <div className="text-xs font-bold text-blue-700 tracking-wider">⚡ 管理員電子名片快捷匯入</div>
+                  <div className="bg-white p-2.5 rounded-lg border border-slate-300 text-xs shadow-2xs">
+                    <input type="file" accept=".vcf" onChange={handleVcfImport} className="w-full text-[11px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-semibold file:bg-blue-50 file:text-blue-600 hover:file:bg-blue-100 cursor-pointer" />
                   </div>
                 </div>
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="md:col-span-2"><label className="block text-xs font-medium text-gray-400 mb-1">Company *</label><input type="text" name="company_name" required value={formData.company_name} onChange={handleInputChange} placeholder="e.g. TSMC" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none text-sm" /></div>
-                <div><label className="block text-xs font-medium text-gray-400 mb-1">Facility</label><input type="text" name="facility_name" value={formData.facility_name || ''} onChange={handleInputChange} placeholder="e.g. 中科廠" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none text-sm" /></div>
-                <div><label className="block text-xs font-medium text-gray-400 mb-1">Floor</label><input type="text" name="facility_floor" value={formData.facility_floor || ''} onChange={handleInputChange} placeholder="e.g. 3" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none text-sm" /></div>
+                <div className="md:col-span-2"><label className="block text-xs font-bold text-slate-600 mb-1">Company *</label><input type="text" name="company_name" required value={formData.company_name} onChange={handleInputChange} placeholder="e.g. TSMC" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-sm focus:ring-2 focus:ring-blue-600" /></div>
+                <div><label className="block text-xs font-bold text-slate-600 mb-1">Facility</label><input type="text" name="facility_name" value={formData.facility_name || ''} onChange={handleInputChange} placeholder="e.g. 中科廠" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-sm focus:ring-2 focus:ring-blue-600" /></div>
+                <div><label className="block text-xs font-bold text-slate-600 mb-1">Floor</label><input type="text" name="facility_floor" value={formData.facility_floor || ''} onChange={handleInputChange} placeholder="e.g. 3" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-sm focus:ring-2 focus:ring-blue-600" /></div>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div><label className="block text-xs font-medium text-gray-400 mb-1">Contact Name *</label><input type="text" name="contact_name" required value={formData.contact_name} onChange={handleInputChange} placeholder="Name" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none text-sm" /></div>
-                <div><label className="block text-xs font-medium text-gray-400 mb-1">Title</label><input type="text" name="title" value={formData.title || ''} onChange={handleInputChange} placeholder="Title" className="w-full px-3 py-2 bg-gray-700 border border-blue-900/60 rounded-lg text-white focus:outline-none text-sm" /></div>
+                <div><label className="block text-xs font-bold text-slate-600 mb-1">Contact Name *</label><input type="text" name="contact_name" required value={formData.contact_name} onChange={handleInputChange} placeholder="Name" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-sm focus:ring-2 focus:ring-blue-600" /></div>
+                <div><label className="block text-xs font-bold text-slate-600 mb-1">Title</label><input type="text" name="title" value={formData.title || ''} onChange={handleInputChange} placeholder="Title" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-sm focus:ring-2 focus:ring-blue-600" /></div>
                 <div>
-                  <label className="block text-xs font-medium text-blue-400 mb-1">現況 *</label>
-                  <select name="status" value={formData.status} onChange={handleInputChange} className="w-full px-3 py-2 bg-gray-700 border border-blue-900/60 rounded-lg text-white text-sm focus:outline-none">
+                  <label className="block text-xs font-bold text-blue-700 mb-1">現況 *</label>
+                  <select name="status" value={formData.status} onChange={handleInputChange} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold text-sm focus:outline-none focus:ring-2 focus:ring-blue-600">
                     <option value="在職">🟢 在職 </option>
                     <option value="離職">🔴 離職 </option>
                   </select>
@@ -627,31 +625,31 @@ export default function CustomerPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-amber-400 mb-1">行動電話 (手機)</label>
-                  <input type="text" name="mobile" value={formData.mobile || ''} onChange={handleInputChange} placeholder="e.g. 0912345678" className="w-full px-3 py-2 bg-gray-700 border border-amber-900/40 rounded-lg text-white text-sm focus:outline-none" />
+                  <label className="block text-xs font-bold text-blue-700 mb-1">行動電話 (手機)</label>
+                  <input type="text" name="mobile" value={formData.mobile || ''} onChange={handleInputChange} placeholder="e.g. 0912345678" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-blue-700 font-bold tracking-wide focus:outline-none focus:ring-2 focus:ring-blue-600 text-sm" />
                 </div>
                 <div className="md:col-span-1">
-                  <label className="block text-xs font-medium text-gray-400 mb-1">公司電話 (總機)</label>
-                  <input type="text" name="phone" value={formData.phone || ''} onChange={handleInputChange} placeholder="e.g. 033123456" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none" />
+                  <label className="block text-xs font-bold text-slate-600 mb-1">公司電話 (總機)</label>
+                  <input type="text" name="phone" value={formData.phone || ''} onChange={handleInputChange} placeholder="033123456" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-sm focus:ring-2 focus:ring-blue-600" />
                 </div>
-                <div><label className="block text-xs font-medium text-gray-400 mb-1">Ext.</label><input type="text" name="extension" value={formData.extension || ''} onChange={handleInputChange} placeholder="Ext" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none" /></div>
-                <div><label className="block text-xs font-medium text-gray-400 mb-1">Line ID</label><input type="text" name="line_id" value={formData.line_id || ''} onChange={handleInputChange} placeholder="Line ID" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none" /></div>
+                <div><label className="block text-xs font-bold text-slate-600 mb-1">Ext.</label><input type="text" name="extension" value={formData.extension || ''} onChange={handleInputChange} placeholder="Ext" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-sm focus:ring-2 focus:ring-blue-600" /></div>
+                <div><label className="block text-xs font-bold text-slate-600 mb-1">Line ID</label><input type="text" name="line_id" value={formData.line_id || ''} onChange={handleInputChange} placeholder="Line ID" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-sm focus:ring-2 focus:ring-blue-600" /></div>
               </div>
 
-              <div><label className="block text-xs font-medium text-gray-400 mb-1">Email</label><input type="email" name="email" value={formData.email || ''} onChange={handleInputChange} placeholder="Email" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none" /></div>
+              <div><label className="block text-xs font-bold text-slate-600 mb-1">Email</label><input type="email" name="email" value={formData.email || ''} onChange={handleInputChange} placeholder="Email" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-sm focus:ring-2 focus:ring-blue-600" /></div>
               
               <div className="space-y-2">
-                <label className="block text-xs font-medium text-gray-400">Address</label>
+                <label className="block text-xs font-bold text-slate-600">Address</label>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div><select value={city} onChange={handleCityChange} className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none text-sm"><option value="">選擇縣市</option>{Object.keys(taiwanDistricts).map((c) => (<option key={c} value={c}>{c}</option>))}</select></div>
-                  <div><select value={dist} disabled={!city} onChange={(e) => setDist(e.target.value)} className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none text-sm disabled:opacity-40"><option value="">選擇區域</option>{city && taiwanDistricts[city].map((d) => (<option key={d} value={d}>{d}</option>))}</select></div>
-                  <div className="md:col-span-2"><input type="text" value={detailAddress} onChange={(e) => setDetailAddress(e.target.value)} placeholder="詳細路名..." className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none text-sm" /></div>
+                  <div><select value={city} onChange={handleCityChange} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-sm"><option value="">選擇縣市</option>{Object.keys(taiwanDistricts).map((c) => (<option key={c} value={c}>{c}</option>))}</select></div>
+                  <div><select value={dist} disabled={!city} onChange={(e) => setDist(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-sm disabled:opacity-40"><option value="">選擇區域</option>{city && taiwanDistricts[city].map((d) => (<option key={d} value={d}>{d}</option>))}</select></div>
+                  <div className="md:col-span-2"><input type="text" value={detailAddress} onChange={(e) => setDetailAddress(e.target.value)} placeholder="詳細路名..." className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-sm" /></div>
                 </div>
               </div>
-              <div><label className="block text-xs font-medium text-gray-400 mb-1">Notes</label><textarea name="notes" rows={5} value={formData.notes || ''} onChange={handleInputChange} placeholder="Notes..." className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none resize-none font-mono text-xs leading-relaxed" /></div>
-              <div className="pt-4 border-t border-gray-700 flex justify-end gap-3">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-gray-750 text-gray-200 rounded-lg font-medium text-sm">取消</button>
-                <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium text-sm disabled:opacity-50">{isSubmitting ? '儲存中...' : editingCustomerId ? '確認更新' : '確認新增'}</button>
+              <div><label className="block text-xs font-bold text-slate-600 mb-1">Notes</label><textarea name="notes" rows={5} value={formData.notes || ''} onChange={handleInputChange} placeholder="Notes..." className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-medium focus:outline-none resize-none font-mono text-xs leading-relaxed" /></div>
+              <div className="pt-4 border-t border-slate-300 flex justify-end gap-3 bg-slate-50 px-6 py-3 -mx-6 -mb-6">
+                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-white border border-slate-400 text-slate-800 rounded-lg font-bold text-sm hover:bg-slate-100">取消</button>
+                <button type="submit" disabled={isSubmitting} className="px-5 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm disabled:opacity-50 hover:bg-blue-700 transition-colors shadow-2xs">確認更新</button>
               </div>
             </form>
           </div>
@@ -660,43 +658,42 @@ export default function CustomerPage() {
 
       {/* LINE QR Code */}
       {activeLineId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="w-full max-w-xs bg-gray-800 border border-gray-700 rounded-xl p-6 text-center">
-            <h3 className="text-lg font-bold text-white mb-1">LINE 行動條碼</h3>
-            <p className="text-xs text-gray-400 mb-4">ID: <span className="text-green-400 font-mono select-all">{activeLineId}</span></p>
-            <div className="bg-white p-4 rounded-lg inline-block mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="w-full max-w-xs bg-white border border-slate-200 rounded-xl p-6 text-center shadow-2xl font-bold text-black">
+            <h3 className="text-lg font-bold text-slate-900 mb-1 tracking-wide font-mono">LINE QR CODE</h3>
+            <p className="text-xs text-blue-700 font-bold mb-4 font-mono">ID: <span className="select-all">{activeLineId}</span></p>
+            <div className="bg-slate-50 p-3 rounded-lg inline-block mb-4 border border-slate-200">
               <img src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`https://line.me/R/ti/p/~${activeLineId}`)}`} alt="Line QR Code" width={180} height={180} className="mx-auto" />
             </div>
-            <p className="text-xs text-gray-400 mb-5">請使用手機 LINE 掃描條碼</p>
-            <button onClick={() => setActiveLineId(null)} className="w-full py-2 bg-gray-750 text-white rounded-lg font-medium border border-gray-600">關閉視窗</button>
+            <p className="text-xs text-slate-500 mb-5">請使用手機 LINE 應用程式掃描</p>
+            <button onClick={() => setActiveLineId(null)} className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-bold border border-slate-300 text-xs font-mono transition-colors">CLOSE</button>
           </div>
         </div>
       )}
 
-      {/* ==================== 📊 智慧升級：帶有「最近變更紀錄」文字標籤的靠右智慧摺疊抽屜籤 ==================== */}
-      <div ref={logPanelRef} className="fixed bottom-4 right-4 z-40 flex flex-col items-end">
+      {/* 📊 最近變更紀錄智慧抽屜籤 */}
+      <div ref={logPanelRef} className="fixed bottom-4 right-4 z-40 flex flex-col items-end font-sans font-bold">
         {isLogPanelOpen ? (
-          // 展開狀態：完整時間軸
-          <div className="w-80 bg-gray-850 border border-gray-700 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="bg-gray-800 px-4 py-2.5 border-b border-gray-700 flex items-center justify-between">
-              <span className="text-xs font-bold text-gray-400 tracking-wider">📊 最近變更紀錄</span>
-              <button onClick={() => setIsLogPanelOpen(false)} className="text-gray-500 hover:text-white text-xs font-bold font-mono p-1">✕</button>
+          <div className="w-80 bg-white border border-slate-300 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 text-slate-900">
+            <div className="bg-slate-100 px-4 py-2.5 border-b border-slate-300 flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-800 tracking-wider">📊 最近變更紀錄</span>
+              <button onClick={() => setIsLogPanelOpen(false)} className="text-slate-500 hover:text-black text-xs font-bold p-1">✕</button>
             </div>
-            <div className="p-4 space-y-4 max-h-64 overflow-y-auto font-mono text-xs">
+            <div className="p-4 space-y-4 max-h-64 overflow-y-auto text-xs">
               {logs.length === 0 ? (
-                <div className="text-center py-6 text-gray-500">暫無變更紀錄</div>
+                <div className="text-center py-6 text-slate-500 tracking-wider font-bold">暫無變更紀錄</div>
               ) : (
-                <div className="relative border-l border-gray-700 space-y-4 pl-3.5 ml-1">
+                <div className="relative border-l border-slate-300 space-y-4 pl-3.5 ml-1">
                   {logs.map((log) => (
                     <div key={log.id} className="relative group">
-                      <span className="absolute -left-[19.5px] top-1.5 w-2 h-2 rounded-full bg-gray-600 group-hover:bg-blue-500 transition-colors"></span>
-                      <div className="flex items-center gap-1.5 text-gray-500 text-[11px]">
-                        <span className="text-gray-400">{new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      <span className="absolute -left-[19.5px] top-1.5 w-1.5 h-1.5 rounded-full bg-slate-400 group-hover:bg-blue-600 transition-colors"></span>
+                      <div className="flex items-center gap-1.5 text-slate-500 text-[11px] font-semibold">
+                        <span className="text-slate-600">{new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                         <span>|</span>
-                        <span className="font-bold text-gray-300 truncate max-w-[160px]" title={log.customer_name}>{log.customer_name}</span>
+                        <span className="font-bold text-slate-900 truncate max-w-[160px]" title={log.customer_name}>{log.customer_name}</span>
                       </div>
-                      <p className="text-gray-400 text-[11px] mt-0.5 leading-relaxed break-all">[{log.action_type}] {log.details}</p>
-                      <div className="text-[10px] text-gray-600 text-right mt-0.5">User: {log.operator}</div>
+                      <p className="text-slate-800 text-[11px] mt-0.5 leading-relaxed break-all font-bold">[{log.action_type}] {log.details}</p>
+                      <div className="text-[10px] text-slate-500 text-right mt-0.5 font-medium">User: {log.operator}</div>
                     </div>
                   ))}
                 </div>
@@ -704,15 +701,14 @@ export default function CustomerPage() {
             </div>
           </div>
         ) : (
-          // 🧠 隱藏狀態：升級為帶有精美文字說明、自適應寬度的膠囊形按鈕 (0 阻擋！)
           <button
             onClick={() => setIsLogPanelOpen(true)}
-            className="px-4 h-11 bg-gray-800 hover:bg-gray-750 text-gray-300 border border-gray-700 rounded-full flex items-center gap-2 shadow-2xl transition-all hover:scale-102 active:scale-98 font-mono text-xs font-semibold select-none group relative"
+            className="px-4 h-10 bg-white hover:bg-slate-100 text-slate-900 border border-slate-400 rounded-full flex items-center gap-2 shadow-md transition-all hover:scale-102 active:scale-98 text-xs font-bold select-none group relative tracking-wider"
           >
             <span>📊</span>
             <span>最近變更紀錄</span>
             {logs.length > 0 && (
-              <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
+              <span className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-pulse"></span>
             )}
           </button>
         )}
@@ -720,27 +716,26 @@ export default function CustomerPage() {
 
       {/* 修改密碼彈出視窗 */}
       {isPwdModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="w-full max-w-sm bg-gray-800 border border-gray-700 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="px-5 py-4 border-b border-gray-700 flex items-center justify-between bg-gray-850">
-              <h2 className="text-base font-bold text-white flex items-center gap-1.5">
-                <span>🔐 變更管理員密碼</span>
-                <span className="text-xs text-amber-400 font-mono">[{operatorName}]</span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
+          <div className="w-full max-w-sm bg-white border border-slate-300 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 text-black font-bold">
+            <div className="px-5 py-4 border-b border-slate-300 flex items-center justify-between bg-slate-100">
+              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5 tracking-wider">
+                <span>🔐 修改管理員密碼</span>
               </h2>
-              <button onClick={() => { setIsPwdModalOpen(false); setNewPassword(''); setConfirmPassword(''); }} className="text-gray-400 hover:text-white transition-colors text-sm">✕</button>
+              <button onClick={() => { setIsPwdModalOpen(false); setNewPassword(''); setConfirmPassword(''); }} className="text-gray-400 hover:text-slate-700 transition-colors text-sm">✕</button>
             </div>
-            <form onSubmit={handleUpdatePassword} className="p-5 space-y-4">
+            <form onSubmit={handleUpdatePassword} className="p-5 space-y-4 text-xs">
               <div>
-                <label className="block text-xs font-medium text-gray-400 mb-2">輸入新密碼 (至少 6 位數)</label>
-                <input type="password" required autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="請輸入全新安全密碼" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <label className="block font-bold text-slate-400 mb-2">輸入新密碼 (至少 6 位數)</label>
+                <input type="password" required autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="請輸入全新安全密碼" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-black text-sm focus:outline-none focus:ring-2 focus:ring-blue-600" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-400 mb-2">再次確認新密碼</label>
-                <input type="password" required autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="請再次輸入新密碼" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <label className="block font-bold text-slate-400 mb-2">再次確認新密碼</label>
+                <input type="password" required autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="請再次輸入新密碼" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-black text-sm focus:outline-none focus:ring-2 focus:ring-blue-600" />
               </div>
-              <div className="pt-2 flex justify-end gap-2 text-xs">
-                <button type="button" onClick={() => { setIsPwdModalOpen(false); setNewPassword(''); setConfirmPassword(''); }} className="px-4 py-2 bg-gray-770 text-gray-200 rounded-md font-medium">取消</button>
-                <button type="submit" disabled={pwdUpdating} className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-md font-medium shadow transition-colors disabled:opacity-50">{pwdUpdating ? '同步更新中...' : '確認重設密碼'}</button>
+              <div className="pt-2 flex justify-end gap-2 bg-slate-50 p-3 -mx-5 -mb-5 border-t border-slate-200">
+                <button type="button" onClick={() => { setIsPwdModalOpen(false); setNewPassword(''); setConfirmPassword(''); }} className="px-4 py-2 bg-white border border-slate-400 text-slate-700 rounded-md font-bold">CANCEL</button>
+                <button type="submit" disabled={pwdUpdating} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-bold shadow transition-colors disabled:opacity-50">{pwdUpdating ? '同步更新中...' : '確認重設密碼'}</button>
               </div>
             </form>
           </div>
