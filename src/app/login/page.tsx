@@ -16,7 +16,7 @@ export default function LoginPage() {
 
     try {
       setLoading(true);
-      const virtualEmail = `${username.trim()}@portal.local`;
+      const virtualEmail = `${username.trim()}@system.local`;
 
       const { data, error } = await supabase.auth.signInWithPassword({
         email: virtualEmail,

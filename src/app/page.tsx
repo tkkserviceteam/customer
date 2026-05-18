@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Customer, InsertCustomerInput } from '@/types/customer';
 import { taiwanDistricts } from '@/lib/taiwanDistricts';
+// 引入開源名片 OCR 套件
+import { createWorker } from 'tesseract.js';
 
 interface CustomerLog {
   id: string;
@@ -33,6 +35,9 @@ export default function CustomerPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null);
 
+  // 智慧匯入狀態
+  const [importLoading, setImportLoading] = useState(false);
+
   // Line QR Code Modal 狀態
   const [activeLineId, setActiveLineId] = useState<string | null>(null);
 
@@ -48,16 +53,76 @@ export default function CustomerPage() {
   const [dist, setDist] = useState('');
   const [detailAddress, setDetailAddress] = useState('');
 
-  // 閒置登出定時器參照
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const IDLE_TIMEOUT_DURATION = 10 * 60 * 1000; // 10 分鐘
+  const IDLE_TIMEOUT_DURATION = 10 * 60 * 1000;
 
   const handleCityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setCity(e.target.value);
     setDist('');
   };
 
-  // 輔助功能：解析登入名稱
+  // 智慧匯入：處理 VCF 檔案解析
+  const handleVcfImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      if (!text) return;
+
+      // 使用 Regex 擷取 VCard 標準欄位
+      const orgMatch = text.match(/ORG:(.*?)(?:\r?\n|;)/);
+      const fnMatch = text.match(/FN:(.*?)(?:\r?\n|;)/);
+      const telMatch = text.match(/TEL(?:;.*?):(.*)/);
+      const emailMatch = text.match(/EMAIL(?:;.*?):(.*)/);
+      const titleMatch = text.match(/TITLE:(.*?)(?:\r?\n|;)/);
+
+      setFormData((prev) => ({
+        ...prev,
+        company_name: orgMatch ? orgMatch[1].trim() : prev.company_name,
+        contact_name: fnMatch ? fnMatch[1].trim() : prev.contact_name,
+        phone: telMatch ? telMatch[1].trim().replace(/[- ]/g, '') : prev.phone,
+        email: emailMatch ? emailMatch[1].trim() : prev.email,
+        title: titleMatch ? titleMatch[1].trim() : prev.title,
+      }));
+
+      alert('vCard (.vcf) 聯絡人解析完成！請檢查下方欄位。');
+    };
+    reader.readAsText(file);
+  };
+
+  // 智慧匯入：處理名片圖片 OCR 辨識
+  const handleImageOcrImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setImportLoading(true);
+      const worker = await createWorker('chi_tra+eng');
+      const ret = await worker.recognize(file);
+      const ocrText = ret.data.text;
+      await worker.terminate();
+
+      if (!ocrText.trim()) {
+        alert('未能辨識出名片上的文字，請確保圖片清晰、光線充足。');
+        return;
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        notes: `【名片自動 OCR 辨識結果】：\n${ocrText}\n\n${prev.notes || ''}`
+      }));
+
+      alert('名片圖片掃描完成！文字已成功提取並注入下方「備註說明」中。');
+    } catch (error) {
+      console.error('OCR 失敗:', error);
+      alert('名片辨識發生錯誤，請稍後再試。');
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
   const updateAuthState = (session: any) => {
     setIsAdmin(!!session);
     if (session?.user?.email) {
@@ -67,13 +132,10 @@ export default function CustomerPage() {
     }
   };
 
-  // 核心自動登出邏輯
   const resetIdleTimeout = () => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     if (isAdmin) {
-      timeoutRef.current = setTimeout(() => {
-        handleAutoLogout();
-      }, IDLE_TIMEOUT_DURATION);
+      timeoutRef.current = setTimeout(() => { handleAutoLogout(); }, IDLE_TIMEOUT_DURATION);
     }
   };
 
@@ -99,39 +161,24 @@ export default function CustomerPage() {
     const checkAuthAndFetch = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       updateAuthState(session);
-
-      supabase.auth.onAuthStateChange((_event, session) => {
-        updateAuthState(session);
-      });
-
+      supabase.auth.onAuthStateChange((_event, session) => { updateAuthState(session); });
       await fetchCustomers();
       await fetchLogs();
     };
-
     checkAuthAndFetch();
 
     const activityEvents = ['mousemove', 'keydown', 'click', 'scroll'];
-    activityEvents.forEach(event => {
-      window.addEventListener(event, resetIdleTimeout);
-    });
-
+    activityEvents.forEach(event => { window.addEventListener(event, resetIdleTimeout); });
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      activityEvents.forEach(event => {
-        window.removeEventListener(event, resetIdleTimeout);
-      });
+      activityEvents.forEach(event => { window.removeEventListener(event, resetIdleTimeout); });
     };
   }, [isAdmin]);
 
-  // 撈取客戶資料
   const fetchCustomers = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('customers')
-        .select('*')
-        .order('company_name', { ascending: true });
-
+      const { data, error } = await supabase.from('customers').select('*').order('company_name', { ascending: true });
       if (error) throw error;
       setCustomers(data || []);
     } catch (error) {
@@ -141,15 +188,9 @@ export default function CustomerPage() {
     }
   };
 
-  // 撈取日誌
   const fetchLogs = async () => {
     try {
-      const { data, error } = await supabase
-        .from('customer_logs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(5);
-
+      const { data, error } = await supabase.from('customer_logs').select('*').order('created_at', { ascending: false }).limit(5);
       if (error) throw error;
       setLogs(data || []);
     } catch (error) {
@@ -157,17 +198,9 @@ export default function CustomerPage() {
     }
   };
 
-  // 寫入日誌
   const writeLog = async (actionType: string, customerName: string, details: string) => {
     try {
-      const { error } = await supabase.from('customer_logs').insert([
-        {
-          operator: operatorName || '訪客',
-          action_type: actionType,
-          customer_name: customerName,
-          details: details
-        }
-      ]);
+      const { error } = await supabase.from('customer_logs').insert([{ operator: operatorName || '訪客', action_type: actionType, customer_name: customerName, details: details }]);
       if (error) throw error;
       await fetchLogs();
     } catch (error: any) {
@@ -182,22 +215,14 @@ export default function CustomerPage() {
 
   const handleOpenCreateModal = () => {
     setEditingCustomerId(null);
-    setFormData({
-      company_name: '', facility_name: '', facility_floor: '',
-      contact_name: '', title: '', phone: '', extension: '',
-      line_id: '', email: '', address: '', notes: '',
-    });
+    setFormData({ company_name: '', facility_name: '', facility_floor: '', contact_name: '', title: '', phone: '', extension: '', line_id: '', email: '', address: '', notes: '' });
     setCity(''); setDist(''); setDetailAddress('');
     setIsModalOpen(true);
   };
 
   const handleOpenEditModal = (customer: Customer) => {
     setEditingCustomerId(customer.id);
-    setFormData({
-      company_name: customer.company_name, facility_name: customer.facility_name || '', facility_floor: customer.facility_floor || '',
-      contact_name: customer.contact_name, title: customer.title || '', phone: customer.phone || '', extension: customer.extension || '',
-      line_id: customer.line_id || '', email: customer.email || '', address: customer.address || '', notes: customer.notes || '',
-    });
+    setFormData({ company_name: customer.company_name, facility_name: customer.facility_name || '', facility_floor: customer.facility_floor || '', contact_name: customer.contact_name, title: customer.title || '', phone: customer.phone || '', extension: customer.extension || '', line_id: customer.line_id || '', email: customer.email || '', address: customer.address || '', notes: customer.notes || '' });
 
     let foundCity = ''; let foundDist = ''; let foundDetail = customer.address || '';
     if (customer.address) {
@@ -206,8 +231,7 @@ export default function CustomerPage() {
           foundCity = cityName;
           for (const distName of taiwanDistricts[cityName]) {
             if (customer.address.startsWith(cityName + distName)) {
-              foundDist = distName;
-              foundDetail = customer.address.replace(cityName + distName, '');
+              foundDist = distName; foundDetail = customer.address.replace(cityName + distName, '');
               break;
             }
           }
@@ -224,7 +248,6 @@ export default function CustomerPage() {
     try {
       const { error } = await supabase.from('customers').delete().eq('id', id);
       if (error) throw error;
-      
       alert('資料已成功刪除！');
       await writeLog('刪除', company, `移除了聯絡窗口: ${name}`);
       fetchCustomers();
@@ -239,9 +262,7 @@ export default function CustomerPage() {
       setIsSubmitting(true);
       const fullAddress = city ? `${city}${dist}${detailAddress}` : detailAddress;
       const finalData = { ...formData, address: fullAddress === '' ? null : fullAddress };
-      const cleanedData = Object.fromEntries(
-        Object.entries(finalData).map(([key, value]) => [key, value === '' ? null : value])
-      );
+      const cleanedData = Object.fromEntries(Object.entries(finalData).map(([key, value]) => [key, value === '' ? null : value]));
 
       if (editingCustomerId) {
         const { error } = await supabase.from('customers').update(cleanedData).eq('id', editingCustomerId);
@@ -258,36 +279,26 @@ export default function CustomerPage() {
       fetchCustomers();
     } catch (error) {
       alert('儲存失敗，請檢查管理員登入權限。');
-    } finally {
+    } finally { // 💡 這裡已修正為完美的 finally
       setIsSubmitting(false);
     }
   };
 
   const filteredCustomers = customers.filter((customer) => {
     const search = searchTerm.toLowerCase();
-    return (
-      customer.company_name?.toLowerCase().includes(search) ||
-      customer.facility_name?.toLowerCase().includes(search) ||
-      customer.contact_name?.toLowerCase().includes(search) ||
-      customer.title?.toLowerCase().includes(search) ||
-      customer.address?.toLowerCase().includes(search)
-    );
+    return customer.company_name?.toLowerCase().includes(search) || customer.facility_name?.toLowerCase().includes(search) || customer.contact_name?.toLowerCase().includes(search) || customer.title?.toLowerCase().includes(search) || customer.address?.toLowerCase().includes(search);
   });
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 p-4 md:p-12 pb-32">
       <div className="max-w-7xl mx-auto">
         
-        {/* 標題列 */}
+        {/* Top Title Bar */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
           <div>
             <h1 className="text-xl md:text-2xl font-bold tracking-tight text-white">客戶通訊錄管理系統</h1>
             <p className="text-xs md:text-sm mt-1">
-              {isAdmin ? (
-                <span className="text-green-400">🟢 歡迎管理員 [{operatorName}] 登入模式 (10分閒置安全防護中)</span>
-              ) : (
-                <span className="text-gray-400">🔵 訪客唯讀模式</span>
-              )}
+              {isAdmin ? <span className="text-green-400">🟢 歡迎管理員 [{operatorName}] 登入模式 (10分閒置安全防護中)</span> : <span className="text-gray-400">🔵 訪客唯讀模式</span>}
             </p>
           </div>
           <div className="flex gap-2 md:gap-3">
@@ -302,25 +313,18 @@ export default function CustomerPage() {
           </div>
         </div>
 
-        {/* 搜尋框 */}
+        {/* Search */}
         <div className="mb-6">
-          <input
-            type="text"
-            placeholder="搜尋公司、廠區、聯絡人、職稱或地址..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full md:w-96 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm md:text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-          />
+          <input type="text" placeholder="搜尋公司、廠區、聯絡人、職稱或地址..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full md:w-96 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
 
-        {/* 載入中 / 無資料提示狀態 */}
         {loading ? (
           <div className="text-center py-12 text-gray-400">資料載入中...</div>
         ) : filteredCustomers.length === 0 ? (
           <div className="text-center py-12 text-gray-400">找不到客戶資料</div>
         ) : (
           <>
-            {/* ==================== 1. 桌面電腦版 (Desktop): 傳統 Table 表格 ==================== */}
+            {/* 1. Desktop Table */}
             <div className="hidden md:block bg-gray-800 border border-gray-700 rounded-xl overflow-hidden shadow-xl">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
@@ -370,19 +374,15 @@ export default function CustomerPage() {
               </div>
             </div>
 
-            {/* ==================== 2. 手機行動版 (Mobile): 資訊型卡片佈局 ==================== */}
+            {/* 2. Mobile Cards */}
             <div className="block md:hidden space-y-4">
               {filteredCustomers.map((customer) => (
                 <div key={customer.id} className="bg-gray-800 border border-gray-700 rounded-xl p-4 shadow-md space-y-3">
-                  {/* 公司與廠別頂部區塊 */}
                   <div className="flex justify-between items-start border-b border-gray-700 pb-2">
                     <div>
                       <div className="text-base font-bold text-white">{customer.company_name}</div>
-                      <div className="text-xs text-gray-400 mt-0.5">
-                        {customer.facility_name || '無特定廠區'} {customer.facility_floor ? ` • ${customer.facility_floor}F` : ''}
-                      </div>
+                      <div className="text-xs text-gray-400 mt-0.5">{customer.facility_name || '無特定廠區'} {customer.facility_floor ? ` • ${customer.facility_floor}F` : ''}</div>
                     </div>
-                    {/* 管理員限定按鈕 */}
                     {isAdmin && (
                       <div className="flex gap-3 text-xs pt-0.5">
                         <button onClick={() => handleOpenEditModal(customer)} className="text-amber-400 font-semibold bg-amber-950/40 px-2 py-1 rounded border border-amber-900/60">編輯</button>
@@ -390,82 +390,24 @@ export default function CustomerPage() {
                       </div>
                     )}
                   </div>
-
-                  {/* 聯絡人基本資訊 */}
                   <div className="grid grid-cols-2 gap-2 text-sm bg-gray-750 p-2.5 rounded-lg">
-                    <div>
-                      <span className="text-xs text-gray-400 block mb-0.5">聯絡窗口</span>
-                      <span className="text-gray-200 font-medium">{customer.contact_name}</span>
-                    </div>
-                    <div>
-                      <span className="text-xs text-gray-400 block mb-0.5">職稱</span>
-                      <span className="text-gray-300">{customer.title || '--'}</span>
-                    </div>
+                    <div><span className="text-xs text-gray-400 block mb-0.5">聯絡窗口</span><span className="text-gray-200 font-medium">{customer.contact_name}</span></div>
+                    <div><span className="text-xs text-gray-400 block mb-0.5">職稱</span><span className="text-gray-300">{customer.title || '--'}</span></div>
                   </div>
-
-                  {/* 地址與備註欄位 */}
                   <div className="space-y-1.5 text-xs text-gray-300 px-1">
-                    {customer.address && (
-                      <div className="leading-relaxed">
-                        <span className="text-gray-500 font-medium">地址：</span>{customer.address}
-                      </div>
-                    )}
-                    {customer.notes && (
-                      <div className="leading-relaxed">
-                        <span className="text-gray-500 font-medium">備註：</span>{customer.notes}
-                      </div>
-                    )}
+                    {customer.address && <div className="leading-relaxed"><span className="text-gray-500 font-medium">地址：</span>{customer.address}</div>}
+                    {customer.notes && <div className="leading-relaxed"><span className="text-gray-500 font-medium">備註：</span>{customer.notes}</div>}
                   </div>
-
-                  {/* 行動快點觸控按鈕列 (大按鈕，方便單手操作) */}
                   <div className="grid grid-cols-3 gap-2 pt-1">
-                    {/* 1. 一鍵撥號 */}
-                    {customer.phone ? (
-                      <a 
-                        href={`tel:${customer.phone}`}
-                        className="bg-blue-900/60 hover:bg-blue-900 text-blue-300 border border-blue-800 text-center py-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center gap-0.5 transition-colors"
-                      >
-                        <span className="text-[10px] text-blue-400 font-mono">撥打總機</span>
-                        <span className="truncate max-w-full px-1">{customer.phone}{customer.extension ? `#${customer.extension}` : ''}</span>
-                      </a>
-                    ) : (
-                      <div className="bg-gray-850 text-gray-600 border border-gray-800 text-center py-2 rounded-lg text-xs flex items-center justify-center">無電話</div>
-                    )}
-
-                    {/* 2. LINE 加好友 */}
-                    {customer.line_id ? (
-                      <button 
-                        onClick={() => setActiveLineId(customer.line_id)}
-                        className="bg-green-900/60 hover:bg-green-900 text-green-300 border border-green-800 text-center py-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center gap-0.5 transition-colors"
-                      >
-                        <span className="text-[10px] text-green-400">LINE 掃碼</span>
-                        <span className="truncate max-w-full px-1">{customer.line_id}</span>
-                      </button>
-                    ) : (
-                      <div className="bg-gray-850 text-gray-600 border border-gray-800 text-center py-2 rounded-lg text-xs flex items-center justify-center">無 LINE</div>
-                    )}
-
-                    {/* 3. 地圖導航 */}
-                    {customer.address ? (
-                      <a 
-                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address.split(/[\s\(\（]/)[0])}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="bg-purple-900/60 hover:bg-purple-900 text-purple-300 border border-purple-800 text-center py-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center gap-0.5 transition-colors"
-                      >
-                        <span className="text-[10px] text-purple-400">Google</span>
-                        <span>開啟導航</span>
-                      </a>
-                    ) : (
-                      <div className="bg-gray-850 text-gray-600 border border-gray-800 text-center py-2 rounded-lg text-xs flex items-center justify-center">無地址</div>
-                    )}
+                    {customer.phone ? <a href={`tel:${customer.phone}`} className="bg-blue-900/60 hover:bg-blue-900 text-blue-300 border border-blue-800 text-center py-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center gap-0.5 transition-colors"><span className="text-[10px] text-blue-400 font-mono">撥打總機</span><span className="truncate max-w-full px-1">{customer.phone}{customer.extension ? `#${customer.extension}` : ''}</span></a> : <div className="bg-gray-850 text-gray-600 border border-gray-800 text-center py-2 rounded-lg text-xs flex items-center justify-center">無電話</div>}
+                    {customer.line_id ? <button onClick={() => setActiveLineId(customer.line_id)} className="bg-green-900/60 hover:bg-green-900 text-green-300 border border-green-800 text-center py-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center gap-0.5 transition-colors"><span className="text-[10px] text-green-400">LINE 掃碼</span><span className="truncate max-w-full px-1">{customer.line_id}</span></button> : <div className="bg-gray-850 text-gray-600 border border-gray-800 text-center py-2 rounded-lg text-xs flex items-center justify-center">無 LINE</div>}
+                    {customer.address ? <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address.split(/[\s\(\（]/)[0])}`} target="_blank" rel="noopener noreferrer" className="bg-purple-900/60 hover:bg-purple-900 text-purple-300 border border-purple-800 text-center py-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center gap-0.5 transition-colors"><span className="text-[10px] text-purple-400">Google</span><span>開啟導航</span></a> : <div className="bg-gray-850 text-gray-600 border border-gray-800 text-center py-2 rounded-lg text-xs flex items-center justify-center">無地址</div>}
                   </div>
                 </div>
               ))}
             </div>
           </>
         )}
-
       </div>
 
       {/* 新增/編輯視窗 (Modal) */}
@@ -477,6 +419,30 @@ export default function CustomerPage() {
               <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-white transition-colors text-xl">✕</button>
             </div>
             <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              
+              {/* ==================== 🛠️ 管理員智慧快捷匯入專區 (僅在新增時顯示) ==================== */}
+              {!editingCustomerId && (
+                <div className="bg-gray-850 border border-dashed border-gray-600 rounded-xl p-3 md:p-4 space-y-3">
+                  <div className="text-xs font-bold text-blue-400 tracking-wider flex items-center gap-1.5">
+                    <span>⚡ 管理員智慧表單快捷匯入</span>
+                    {importLoading && <span className="text-amber-400 text-[11px] animate-pulse">(名片 OCR 智慧讀取中，請稍候...)</span>}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    {/* A. VCF 檔案解碼 */}
+                    <div className="bg-gray-800 p-2.5 rounded-lg border border-gray-700">
+                      <label className="block text-gray-400 mb-1.5 font-medium">① 匯入電子名片 (.vcf)</label>
+                      <input type="file" accept=".vcf" onChange={handleVcfImport} disabled={importLoading} className="w-full text-[11px] text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-semibold file:bg-blue-950 file:text-blue-400 hover:file:bg-blue-900 cursor-pointer disabled:opacity-40" />
+                    </div>
+                    {/* B. 名片圖片 OCR */}
+                    <div className="bg-gray-800 p-2.5 rounded-lg border border-gray-700">
+                      <label className="block text-gray-400 mb-1.5 font-medium">② 掃描實體名片圖片 (OCR)</label>
+                      <input type="file" accept="image/*" onChange={handleImageOcrImport} disabled={importLoading} className="w-full text-[11px] text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-semibold file:bg-purple-950 file:text-purple-400 hover:file:bg-purple-900 cursor-pointer disabled:opacity-40" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 表單主要輸入欄位 */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div><label className="block text-xs font-medium text-gray-400 mb-1">Company *</label><input type="text" name="company_name" required value={formData.company_name} onChange={handleInputChange} placeholder="e.g. TSMC" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" /></div>
                 <div><label className="block text-xs font-medium text-gray-400 mb-1">Facility</label><input type="text" name="facility_name" value={formData.facility_name || ''} onChange={handleInputChange} placeholder="e.g. 中科廠" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" /></div>
@@ -500,20 +466,20 @@ export default function CustomerPage() {
                   <div className="md:col-span-2"><input type="text" value={detailAddress} onChange={(e) => setDetailAddress(e.target.value)} placeholder="詳細路名..." className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none" /></div>
                 </div>
               </div>
-              <div><label className="block text-xs font-medium text-gray-400 mb-1">Notes</label><textarea name="notes" rows={3} value={formData.notes || ''} onChange={handleInputChange} placeholder="Notes..." className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none resize-none" /></div>
+              <div><label className="block text-xs font-medium text-gray-400 mb-1">Notes</label><textarea name="notes" rows={5} value={formData.notes || ''} onChange={handleInputChange} placeholder="Notes..." className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none resize-none font-mono text-xs leading-relaxed" /></div>
               <div className="pt-4 border-t border-gray-700 flex justify-end gap-3">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg font-medium">取消</button>
-                <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium disabled:opacity-50">{isSubmitting ? '儲存中...' : editingCustomerId ? '確認更新' : '確認新增'}</button>
+                <button type="submit" disabled={isSubmitting || importLoading} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium disabled:opacity-50">{isSubmitting ? '儲存中...' : editingCustomerId ? '確認更新' : '確認新增'}</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* LINE QR Code 視窗 */}
+      {/* LINE QR Code */}
       {activeLineId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="w-full max-w-xs bg-gray-800 border border-gray-700 rounded-xl p-6 text-center animate-in fade-in zoom-in-95">
+          <div className="w-full max-w-xs bg-gray-800 border border-gray-700 rounded-xl p-6 text-center">
             <h3 className="text-lg font-bold text-white mb-1">LINE 行動條碼</h3>
             <p className="text-xs text-gray-400 mb-4">ID: <span className="text-green-400 font-mono select-all">{activeLineId}</span></p>
             <div className="bg-white p-4 rounded-lg inline-block mb-4">
@@ -525,7 +491,7 @@ export default function CustomerPage() {
         </div>
       )}
 
-      {/* 右下角更新日誌懸浮面板 (只在電腦版顯示，手機版自動藏匿維持版面乾淨) */}
+      {/* 右下角更新日誌懸浮面板 */}
       <div className="fixed bottom-4 right-4 z-40 w-80 bg-gray-850 border border-gray-700 rounded-xl shadow-2xl overflow-hidden hidden md:block">
         <div className="bg-gray-800 px-4 py-2.5 border-b border-gray-700 flex items-center justify-between">
           <span className="text-xs font-bold text-gray-300 tracking-wider flex items-center gap-1.5">
@@ -542,20 +508,10 @@ export default function CustomerPage() {
               <div key={log.id} className={`text-xs pt-2 ${index === 0 ? 'pt-0' : ''}`}>
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <div className="flex items-center gap-1.5 min-w-0">
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 ${
-                      log.action_type === '新增' ? 'bg-blue-950 text-blue-400 border border-blue-900' :
-                      log.action_type === '編輯' ? 'bg-amber-950 text-amber-400 border border-amber-900' :
-                      'bg-red-950 text-red-400 border border-red-900'
-                    }`}>
-                      {log.action_type}
-                    </span>
-                    <span className="font-bold text-white truncate text-[13px]" title={log.customer_name}>
-                      {log.customer_name}
-                    </span>
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 ${log.action_type === '新增' ? 'bg-blue-950 text-blue-400 border border-blue-900' : log.action_type === '編輯' ? 'bg-amber-950 text-amber-400 border border-amber-900' : 'bg-red-950 text-red-400 border border-red-900'}`}>{log.action_type}</span>
+                    <span className="font-bold text-white truncate text-[13px]" title={log.customer_name}>{log.customer_name}</span>
                   </div>
-                  <span className="text-[10px] text-gray-500 font-mono shrink-0">
-                    {new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
+                  <span className="text-[10px] text-gray-500 font-mono shrink-0">{new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
                 <p className="text-gray-400 text-[11px] pl-1 leading-relaxed">{log.details}</p>
                 <div className="text-[10px] text-gray-600 text-right mt-0.5">經辦人: {log.operator}</div>
