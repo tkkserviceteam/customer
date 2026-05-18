@@ -213,7 +213,7 @@ export default function CustomerPage() {
       setConfirmPassword('');
     } catch (error: any) {
       alert(`密碼變更失敗：${error.message}`);
-    } finaly {
+    } finally {
       setPwdUpdating(false);
     }
   };
