@@ -173,21 +173,6 @@ export default function LoginPage() {
           <button onClick={() => router.push('/')} className="hover:text-gray-400 underline transition-colors p-1">
             ← 返回客戶列表前台
           </button>
-          {/* 如果管理員未登入，但知道目前密碼想要臨時修改，也可以直接在右下角點擊啟動 */}
-          {!currentSessionUser && (
-            <>
-              <span>•</span>
-              <button 
-                type="button"
-                onClick={() => {
-                  alert('隱私安全提示：修改密碼前，請先完成管理員登入驗證。');
-                }}
-                className="hover:text-gray-400 underline transition-colors p-1"
-              >
-                忘記/變更密碼？
-              </button>
-            </>
-          )}
         </div>
 
       </div>
