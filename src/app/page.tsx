@@ -231,6 +231,14 @@ export default function CustomerPage() {
     }
   };
 
+  // 🧠 核心修正：當關鍵字搜尋或狀態篩選變更時，自動校準手機滾動錨點回到最左側，防止畫面變動異常
+  useEffect(() => {
+    setCurrentMobileIndex(0);
+    if (mobileContainerRef.current) {
+      mobileContainerRef.current.scrollTo({ left: 0 });
+    }
+  }, [searchTerm, showArchived]);
+
   useEffect(() => {
     const checkAuthAndFetch = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -257,7 +265,6 @@ export default function CustomerPage() {
       if (error) throw error;
       setCustomers(data || []);
       setCurrentPage(1);
-      setCurrentMobileIndex(0);
     } catch (error) {
       console.error('讀取資料失敗:', error);
     } finally {
@@ -453,11 +460,11 @@ export default function CustomerPage() {
 
         {/* 工具列區塊 */}
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <input type="text" placeholder="搜尋公司、廠區、聯絡人..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); setCurrentMobileIndex(0); }} className="w-full md:w-96 px-4 py-2 bg-white border border-slate-400 rounded-lg text-black text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-blue-600 font-medium placeholder-slate-500 shadow-2xs" />
+          <input type="text" placeholder="搜尋公司、廠區、聯絡人..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }} className="w-full md:w-96 px-4 py-2 bg-white border border-slate-400 rounded-lg text-black text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-blue-600 font-medium placeholder-slate-500 shadow-2xs" />
           
           {!isAdmin && (
             <label className="flex items-center gap-2 text-xs md:text-sm text-slate-800 font-bold cursor-pointer select-none bg-white border border-slate-400 rounded-lg px-3 py-2 hover:bg-slate-50 transition-colors shadow-2xs">
-              <input type="checkbox" checked={showArchived} onChange={(e) => { setShowArchived(e.target.checked); setCurrentPage(1); setCurrentMobileIndex(0); }} className="rounded bg-slate-100 border-slate-400 text-blue-600 focus:ring-0 w-4 h-4" />
+              <input type="checkbox" checked={showArchived} onChange={(e) => { setShowArchived(e.target.checked); setCurrentPage(1); }} className="rounded bg-slate-100 border-slate-400 text-blue-600 focus:ring-0 w-4 h-4" />
               <span>顯示已離職窗口人員</span>
             </label>
           )}
@@ -563,12 +570,11 @@ export default function CustomerPage() {
               </div>
             </div>
 
-            {/* 2. Mobile View (🧠 智慧修正：單筆卡片滿版輪播、右上角補回刪除按鈕) */}
+            {/* 2. Mobile View */}
             <div className="block md:hidden relative">
               <div 
                 ref={mobileContainerRef}
                 onScroll={handleMobileScroll}
-                // snap-x snap-mandatory 配合內部卡片的 snap-start snap-always 實現精準單筆卡死效果
                 className="flex overflow-x-auto snap-x snap-mandatory scrollbar-none w-full pb-2 touch-pan-x"
                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
               >
@@ -578,7 +584,6 @@ export default function CustomerPage() {
                   return (
                     <div 
                       key={customer.id} 
-                      // 🧠 核心：改為 w-full、snap-start、snap-always 達成一次只現一筆的絲滑工控滑動
                       className="bg-white border border-slate-300 rounded-xl p-4 shadow-2xs space-y-3 w-full snap-start snap-always shrink-0"
                     >
                       <div className="flex justify-between items-start border-b border-slate-200 pb-2 cursor-pointer select-none" onClick={() => toggleRowExpand(customer.id)}>
@@ -592,7 +597,6 @@ export default function CustomerPage() {
                           </div>
                           <div className="text-xs text-slate-600 font-bold mt-1 ml-3.5">{customer.facility_name || '無特定廠區'} {customer.facility_floor ? ` • ${customer.facility_floor}F` : ''}</div>
                         </div>
-                        {/* 🧠 🧠 核心修正：手機右上角並排「補回刪除按鈕」，以阻止點擊穿透 */}
                         {isAdmin && (
                           <div className="flex gap-1.5 text-xs" onClick={(e) => e.stopPropagation()}>
                             <button onClick={() => handleOpenEditModal(customer)} className="text-amber-800 font-bold bg-amber-50 px-2 py-1 rounded border border-amber-300">編輯</button>
