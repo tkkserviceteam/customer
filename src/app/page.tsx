@@ -60,11 +60,11 @@ export default function CustomerPage() {
   const [isLogPanelOpen, setIsLogPanelOpen] = useState(false);
   const logPanelRef = useRef<HTMLDivElement>(null);
 
-  // 🧠 🧠 新增：電腦端分頁控制狀態（限制每頁顯示 10 筆）
+  // 電腦端分頁控制狀態（限制每頁顯示 10 筆）
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 5;
 
-  // 🧠 🧠 新增：手機版左右滑動小卡的索引紀錄與滑動容器 Ref
+  // 手機版左右滑動小卡的索引紀錄與滑動容器 Ref
   const [currentMobileIndex, setCurrentMobileIndex] = useState(0);
   const mobileContainerRef = useRef<HTMLDivElement>(null);
 
@@ -218,23 +218,15 @@ export default function CustomerPage() {
     }
   };
 
-  useEffect(() => {
-    const handleOutsideClick = (event: MouseEvent) => {
-      if (logPanelRef.current && !logPanelRef.current.contains(event.target as Node)) {
-        setIsLogPanelOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, []);
-
-  // 🧠 新增手機滑動容器的 Scroll 監聽：滑動停止時精確校準卡片小圓點
+  // 智慧監聽：手機版左右滑動校準小圓點
   const handleMobileScroll = () => {
     if (mobileContainerRef.current) {
       const { scrollLeft, clientWidth } = mobileContainerRef.current;
-      const index = Math.round(scrollLeft / clientWidth);
-      if (index !== currentMobileIndex) {
-        setCurrentMobileIndex(index);
+      if (clientWidth > 0) {
+        const index = Math.round(scrollLeft / clientWidth);
+        if (index !== currentMobileIndex) {
+          setCurrentMobileIndex(index);
+        }
       }
     }
   };
@@ -264,7 +256,7 @@ export default function CustomerPage() {
       const { data, error } = await supabase.from('customers').select('*').order('company_name', { ascending: true });
       if (error) throw error;
       setCustomers(data || []);
-      setCurrentPage(1); // 重新獲取資料時重設回第一頁
+      setCurrentPage(1);
       setCurrentMobileIndex(0);
     } catch (error) {
       console.error('讀取資料失敗:', error);
@@ -415,7 +407,6 @@ export default function CustomerPage() {
     return matchesSearch;
   });
 
-  // 🧠 🧠 計算電腦端分頁切換的切片範圍
   const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE) || 1;
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const paginatedCustomers = filteredCustomers.slice(startIndex, startIndex + ITEMS_PER_PAGE);
@@ -478,7 +469,7 @@ export default function CustomerPage() {
           <div className="text-center py-12 text-slate-600 font-bold font-mono">找不到客戶資料</div>
         ) : (
           <>
-            {/* 1. Desktop Table (限制僅顯示目前分頁的 10 筆) */}
+            {/* 1. Desktop Table */}
             <div className="hidden md:block bg-white border border-slate-300 rounded-xl overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
@@ -557,7 +548,7 @@ export default function CustomerPage() {
                 </table>
               </div>
 
-              {/* 🧠 🧠 電腦端標準分頁控制橫列 */}
+              {/* 電腦端分頁列 */}
               <div className="bg-slate-50 border-t border-slate-200 px-4 py-3.5 flex items-center justify-between text-slate-700 font-mono text-xs select-none">
                 <div>
                   顯示第 <span className="font-bold text-slate-900">{filteredCustomers.length === 0 ? 0 : startIndex + 1}</span> 至 <span className="font-bold text-slate-900">{Math.min(startIndex + ITEMS_PER_PAGE, filteredCustomers.length)}</span> 筆，共 <span className="font-bold text-slate-900">{filteredCustomers.length}</span> 筆客戶資料
@@ -572,13 +563,13 @@ export default function CustomerPage() {
               </div>
             </div>
 
-            {/* 2. Mobile View (🧠 🧠 升級：水平左右滑動小卡外觀結構) */}
+            {/* 2. Mobile View (🧠 智慧修正：單筆卡片滿版輪播、右上角補回刪除按鈕) */}
             <div className="block md:hidden relative">
-              {/* 水平輪播容器 */}
               <div 
                 ref={mobileContainerRef}
                 onScroll={handleMobileScroll}
-                className="flex overflow-x-auto snap-x snap-mandatory scrollbar-none w-full gap-4 pb-4 touch-pan-x"
+                // snap-x snap-mandatory 配合內部卡片的 snap-start snap-always 實現精準單筆卡死效果
+                className="flex overflow-x-auto snap-x snap-mandatory scrollbar-none w-full pb-2 touch-pan-x"
                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
               >
                 {filteredCustomers.map((customer) => {
@@ -587,7 +578,8 @@ export default function CustomerPage() {
                   return (
                     <div 
                       key={customer.id} 
-                      className="bg-white border border-slate-300 rounded-xl p-4 shadow-2xs space-y-3 min-w-full snap-center shrink-0"
+                      // 🧠 核心：改為 w-full、snap-start、snap-always 達成一次只現一筆的絲滑工控滑動
+                      className="bg-white border border-slate-300 rounded-xl p-4 shadow-2xs space-y-3 w-full snap-start snap-always shrink-0"
                     >
                       <div className="flex justify-between items-start border-b border-slate-200 pb-2 cursor-pointer select-none" onClick={() => toggleRowExpand(customer.id)}>
                         <div>
@@ -600,9 +592,11 @@ export default function CustomerPage() {
                           </div>
                           <div className="text-xs text-slate-600 font-bold mt-1 ml-3.5">{customer.facility_name || '無特定廠區'} {customer.facility_floor ? ` • ${customer.facility_floor}F` : ''}</div>
                         </div>
+                        {/* 🧠 🧠 核心修正：手機右上角並排「補回刪除按鈕」，以阻止點擊穿透 */}
                         {isAdmin && (
-                          <div className="flex gap-2 text-xs" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex gap-1.5 text-xs" onClick={(e) => e.stopPropagation()}>
                             <button onClick={() => handleOpenEditModal(customer)} className="text-amber-800 font-bold bg-amber-50 px-2 py-1 rounded border border-amber-300">編輯</button>
+                            <button onClick={() => handleDeleteCustomer(customer.id, customer.contact_name, customer.company_name)} className="text-red-600 font-bold bg-red-50 px-2 py-1 rounded border border-red-200">刪除</button>
                           </div>
                         )}
                       </div>
@@ -615,8 +609,8 @@ export default function CustomerPage() {
                         {customer.phone && <div><span className="text-slate-700">總機：</span>{formatPhoneDisplay(customer.phone)}{customer.extension ? ` #${customer.extension}` : ''}</div>}
                       </div>
                       {isExpanded && (
-                        <div className="pt-2 border-t border-slate-200 space-y-2 text-xs font-semibold">
-                          {customer.email && <div><span className="text-slate-400 block mb-0.5 font-mono">Email：</span><a href={`mailto:${customer.email}`} className="text-blue-700 font-bold underline break-all">{customer.email}</a></div>}
+                        <div className="pt-2 border-t border-slate-200 space-y-2 text-xs animate-in fade-in slide-in-from-top-1 duration-200 font-semibold">
+                          {customer.email && <div><span className="text-slate-500 block mb-0.5 font-mono">Email：</span><a href={`mailto:${customer.email}`} className="text-blue-700 font-bold underline break-all">{customer.email}</a></div>}
                           {customer.address && <div><span className="text-slate-400 block mb-0.5 font-mono">完整地址：</span><div className="text-slate-800 leading-relaxed font-bold">{customer.address}</div></div>}
                           <div><span className="text-slate-400 block mb-0.5 font-mono">備註說明：</span><div className="bg-white p-2 rounded border border-slate-200 text-slate-800 text-[11px] whitespace-pre-wrap leading-normal shadow-2xs font-medium">{customer.notes || '暫無備註資訊'}</div></div>
                         </div>
@@ -632,7 +626,7 @@ export default function CustomerPage() {
                 })}
               </div>
 
-              {/* 🧠 手機端水平滑動進度導引指示點列 (Dots) */}
+              {/* 手機版分頁小圓點 */}
               <div className="flex justify-center items-center gap-1.5 mt-2 flex-wrap max-w-full px-4">
                 {filteredCustomers.map((_, idx) => (
                   <span 
@@ -641,8 +635,8 @@ export default function CustomerPage() {
                   />
                 ))}
               </div>
-              <div className="text-center text-[10px] text-slate-400 font-mono font-bold mt-1">
-                ◀ 左右滑動切換窗口 (目前: {currentMobileIndex + 1} / {filteredCustomers.length}) ▶
+              <div className="text-center text-[10px] text-slate-500 font-mono font-bold mt-1">
+                ◀ 左右滑動切換聯絡人 (目前: {currentMobileIndex + 1} / {filteredCustomers.length}) ▶
               </div>
             </div>
           </>
@@ -680,8 +674,8 @@ export default function CustomerPage() {
                 <div>
                   <label className="block text-xs font-bold text-blue-700 mb-1">現況 *</label>
                   <select name="status" value={formData.status} onChange={handleInputChange} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold text-sm focus:outline-none focus:ring-2 focus:ring-blue-600">
-                    <option value="在職">🟢 在職 </option>
-                    <option value="離職">🔴 離職 </option>
+                    <option value="InService">🟢 在職 </option>
+                    <option value="Left">🔴 離職 </option>
                   </select>
                 </div>
               </div>
@@ -710,7 +704,7 @@ export default function CustomerPage() {
                 </div>
               </div>
               <div><label className="block text-xs font-bold text-slate-600 mb-1">Notes</label><textarea name="notes" rows={5} value={formData.notes || ''} onChange={handleInputChange} placeholder="Notes..." className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-medium focus:outline-none resize-none font-mono text-xs leading-relaxed" /></div>
-              <div className="pt-4 border-t border-slate-300 flex justify-end gap-3 bg-slate-50 px-6 py-3 -mx-6 -mb-6">
+              <div className="pt-4 border-t border-slate-200 flex justify-end gap-3 bg-slate-50 px-6 py-3 -mx-6 -mb-6">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-white border border-slate-400 text-slate-800 rounded-lg font-bold text-sm hover:bg-slate-100">取消</button>
                 <button type="submit" disabled={isSubmitting} className="px-5 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm disabled:opacity-50 hover:bg-blue-700 transition-colors shadow-2xs">確認更新</button>
               </div>
@@ -750,7 +744,7 @@ export default function CustomerPage() {
                   {logs.map((log) => (
                     <div key={log.id} className="relative group">
                       <span className="absolute -left-[19.5px] top-1.5 w-1.5 h-1.5 rounded-full bg-slate-400 group-hover:bg-blue-600 transition-colors"></span>
-                      <div className="flex items-center gap-1.5 text-slate-500 text-[11px] font-semibold">
+                      <div className="flex items-center gap-1.5 text-slate-500 text-[11px] group-semibold">
                         <span className="text-slate-600">{new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                         <span>|</span>
                         <span className="font-bold text-slate-900 truncate max-w-[160px]" title={log.customer_name}>{log.customer_name}</span>
