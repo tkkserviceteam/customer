@@ -37,7 +37,6 @@ export default function CustomerPage() {
 
   // 智慧匯入與快篩提取狀態
   const [importLoading, setImportLoading] = useState(false);
-  // 用來儲存 OCR 提取出的推薦欄位暫存
   const [extractedSuggestions, setExtractedSuggestions] = useState<{
     phone?: string;
     email?: string;
@@ -96,45 +95,88 @@ export default function CustomerPage() {
     reader.readAsText(file);
   };
 
-  // 智慧匯入：處理名片圖片 OCR 辨識 + 特徵快篩
+  // 🧠 核心優化：前端 Canvas 影像預處理濾鏡（灰階化 + 降噪高對比）
+  const preprocessImage = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          if (!ctx) { resolve(event.target?.result as string); return; }
+
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+
+          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const data = imgData.data;
+
+          // 走訪像素點進行高對比二值化處理
+          for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            // 灰階權重公式
+            const gray = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+            
+            // 提高對比度閾值：低於 130 變純黑，高於 130 變純白
+            const v = gray < 130 ? 0 : 255;
+            data[i] = v;     // R
+            data[i + 1] = v; // G
+            data[i + 2] = v; // B
+          }
+          ctx.putImageData(imgData, 0, 0);
+          resolve(canvas.toDataURL());
+        };
+        img.src = event.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // 智慧匯入：名片圖片 OCR 辨識
   const handleImageOcrImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     try {
       setImportLoading(true);
-      setExtractedSuggestions({}); // 清空舊的推薦
+      setExtractedSuggestions({});
       
+      // 1. 先進濾鏡將圖片黑白高對比化
+      const processedImageUrl = await preprocessImage(file);
+
+      // 2. 送交 OCR 引擎辨識
       const worker = await createWorker('chi_tra+eng');
-      const ret = await worker.recognize(file);
+      const ret = await worker.recognize(processedImageUrl);
       const ocrText = ret.data.text;
       await worker.terminate();
 
       if (!ocrText.trim()) {
-        alert('未能辨識出名片上的文字，請確保圖片清晰、光線充足。');
+        alert('經過影像黑白過濾後仍未能辨識文字，請確保圖片文字清晰、無嚴重反光。');
         return;
       }
 
-      // 🧠 核心升級：後台特徵篩子（用 Regex 在長文本裡主動抓取電話與信箱）
+      // 用 Regex 提取可能的手機或信箱
       const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-      const phoneRegex = /(?:09\d{8})|(?:0\d{1,2}-\d{6,8})/g; // 支援台灣手機與市話
+      const phoneRegex = /(?:09\d{8})|(?:0\d{1,2}-\d{6,8})/g;
       
       const foundEmails = ocrText.match(emailRegex);
       const foundPhones = ocrText.match(phoneRegex);
 
-      // 把過濾出的可能結果塞入快篩暫存暫存庫
       setExtractedSuggestions({
         email: foundEmails ? foundEmails[0] : undefined,
         phone: foundPhones ? foundPhones[0].replace(/[- ]/g, '') : undefined,
       });
 
-      // 依然完整保留全部文字在外掛備註欄中
       setFormData((prev) => ({
         ...prev,
         notes: `【名片自動 OCR 辨識結果】：\n${ocrText}\n\n${prev.notes || ''}`
       }));
 
-      alert('名片圖片掃描完成！文字已提取至備註，並已啟動智慧欄位快篩指派功能。');
+      alert('名片已進行黑白去噪預處理並掃描完成！文字已提取至備註。');
     } catch (error) {
       console.error('OCR 失敗:', error);
       alert('名片辨識發生錯誤，請稍後再試。');
@@ -379,7 +421,7 @@ export default function CustomerPage() {
                           {customer.line_id ? <button onClick={() => setActiveLineId(customer.line_id)} className="text-green-400 hover:text-green-300 hover:underline flex items-center gap-1 font-medium transition-colors"><span>{customer.line_id}</span><span className="text-xs bg-green-950 text-green-400 border border-green-800 px-1.5 py-0.5 rounded">QR</span></button> : <span className="text-gray-500">--</span>}
                         </td>
                         <td className="p-4 max-w-xs">
-                          {customer.address ? <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address.split(/[\s\(\（]/)[0])}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1 transition-colors truncate">{customer.address}</a> : <span className="text-gray-500">--</span>}
+                          {customer.address ? <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address.split(/[\s\(\環境]/)[0])}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1 transition-colors truncate">{customer.address}</a> : <span className="text-gray-500">--</span>}
                         </td>
                         <td className="p-4 text-gray-400 max-w-xs truncate" title={customer.notes || ''}>{customer.notes || '--'}</td>
                         {isAdmin && (
@@ -423,7 +465,7 @@ export default function CustomerPage() {
                   <div className="grid grid-cols-3 gap-2 pt-1">
                     {customer.phone ? <a href={`tel:${customer.phone}`} className="bg-blue-900/60 hover:bg-blue-900 text-blue-300 border border-blue-800 text-center py-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center gap-0.5 transition-colors"><span className="text-[10px] text-blue-400 font-mono">撥打總機</span><span className="truncate max-w-full px-1">{customer.phone}{customer.extension ? `#${customer.extension}` : ''}</span></a> : <div className="bg-gray-850 text-gray-600 border border-gray-800 text-center py-2 rounded-lg text-xs flex items-center justify-center">無電話</div>}
                     {customer.line_id ? <button onClick={() => setActiveLineId(customer.line_id)} className="bg-green-900/60 hover:bg-green-900 text-green-300 border border-green-800 text-center py-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center gap-0.5 transition-colors"><span className="text-[10px] text-green-400">LINE 掃碼</span><span className="truncate max-w-full px-1">{customer.line_id}</span></button> : <div className="bg-gray-850 text-gray-600 border border-gray-800 text-center py-2 rounded-lg text-xs flex items-center justify-center">無 LINE</div>}
-                    {customer.address ? <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address.split(/[\s\(\（]/)[0])}`} target="_blank" rel="noopener noreferrer" className="bg-purple-900/60 hover:bg-purple-900 text-purple-300 border border-purple-800 text-center py-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center gap-0.5 transition-colors"><span className="text-[10px] text-purple-400">Google</span><span>開啟導航</span></a> : <div className="bg-gray-850 text-gray-600 border border-gray-800 text-center py-2 rounded-lg text-xs flex items-center justify-center">無地址</div>}
+                    {customer.address ? <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address.split(/[\s\(\環境]/)[0])}`} target="_blank" rel="noopener noreferrer" className="bg-purple-900/60 hover:bg-purple-900 text-purple-300 border border-purple-800 text-center py-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center gap-0.5 transition-colors"><span className="text-[10px] text-purple-400">Google</span><span>開啟導航</span></a> : <div className="bg-gray-850 text-gray-600 border border-gray-800 text-center py-2 rounded-lg text-xs flex items-center justify-center">無地址</div>}
                   </div>
                 </div>
               ))}
@@ -447,7 +489,7 @@ export default function CustomerPage() {
                 <div className="bg-gray-850 border border-dashed border-gray-600 rounded-xl p-3 md:p-4 space-y-3">
                   <div className="text-xs font-bold text-blue-400 tracking-wider flex items-center gap-1.5">
                     <span>⚡ 管理員智慧表單快捷匯入</span>
-                    {importLoading && <span className="text-amber-400 text-[11px] animate-pulse">(名片 OCR 智慧讀取中，請稍候...)</span>}
+                    {importLoading && <span className="text-amber-400 text-[11px] animate-pulse">(影像加壓去噪中，請稍候...)</span>}
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                     <div className="bg-gray-800 p-2.5 rounded-lg border border-gray-700">
@@ -455,7 +497,7 @@ export default function CustomerPage() {
                       <input type="file" accept=".vcf" onChange={handleVcfImport} disabled={importLoading} className="w-full text-[11px] text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-semibold file:bg-blue-950 file:text-blue-400 hover:file:bg-blue-900 cursor-pointer disabled:opacity-40" />
                     </div>
                     <div className="bg-gray-800 p-2.5 rounded-lg border border-gray-700">
-                      <label className="block text-gray-400 mb-1.5 font-medium">② 掃描實體名片圖片 (OCR)</label>
+                      <label className="block text-gray-400 mb-1.5 font-medium">② 濾鏡掃描實體名片 (強效黑白 OCR)</label>
                       <input type="file" accept="image/*" onChange={handleImageOcrImport} disabled={importLoading} className="w-full text-[11px] text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-semibold file:bg-purple-950 file:text-purple-400 hover:file:bg-purple-900 cursor-pointer disabled:opacity-40" />
                     </div>
                   </div>
@@ -478,7 +520,6 @@ export default function CustomerPage() {
                 <div className="md:col-span-2">
                   <div className="flex justify-between items-center mb-1">
                     <label className="block text-xs font-medium text-gray-400">Phone</label>
-                    {/* ⚡ 智慧提取按鈕：偵測到照片有電話時亮起 */}
                     {extractedSuggestions.phone && (
                       <button 
                         type="button" 
@@ -501,7 +542,6 @@ export default function CustomerPage() {
               <div>
                 <div className="flex justify-between items-center mb-1">
                   <label className="block text-xs font-medium text-gray-400">Email</label>
-                  {/* ⚡ 智慧提取按鈕：偵測到照片有 Email 時亮起 */}
                   {extractedSuggestions.email && (
                     <button 
                       type="button" 
