@@ -49,7 +49,7 @@ export default function CustomerPage() {
   const [isLogPanelOpen, setIsLogPanelOpen] = useState(false);
   const logPanelRef = useRef<HTMLDivElement>(null);
 
-  // 限制每頁顯示 5 筆，電腦表格與手機卡片同步連動
+  // 電腦表格分頁控制（限制每頁顯示 5 筆）
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 5;
 
@@ -71,7 +71,7 @@ export default function CustomerPage() {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const IDLE_TIMEOUT_DURATION = 10 * 60 * 1000;
 
-  // --- 2. 核心函式頂層宣告（確保 TypeScript 100% 找得到） ---
+  // --- 2. 函式宣告提升處理 ---
   const fetchCustomers = async () => {
     try {
       setLoading(true);
@@ -134,7 +134,6 @@ export default function CustomerPage() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // 🧠 核心位置修正：將修改密碼功能移至全局頂層，澈底排除 Cannot find name 的變數作用域阻斷
   const handleUpdatePassword = async (newE: React.FormEvent) => {
     newE.preventDefault();
     if (newPassword.length < 6) {
@@ -189,11 +188,15 @@ export default function CustomerPage() {
     };
   }, [isAdmin]);
 
+  // 當輸入搜尋關鍵字或篩選條件變更時，自動將手機滾動軸重置復位至第 1 筆
   useEffect(() => {
-    setCurrentPage(1);
+    setCurrentMobileIndex(0);
+    if (mobileContainerRef.current) {
+      mobileContainerRef.current.scrollTo({ left: 0 });
+    }
   }, [searchTerm, showArchived]);
 
-  // --- 4. 業務方法邏輯 ---
+  // --- 4. 格式化與輔助方法 ---
   const formatMobileDisplay = (num: string) => {
     if (!num) return '--';
     const clean = num.replace(/\D/g, '');
@@ -381,7 +384,7 @@ export default function CustomerPage() {
     }
   };
 
-  // --- 5. 過濾與範圍切片計算 ---
+  // --- 5. 過濾與分頁計算 ---
   const filteredCustomers = customers.filter((customer) => {
     const search = searchTerm.toLowerCase();
     const matchesSearch = (
@@ -466,7 +469,7 @@ export default function CustomerPage() {
 
         {/* 資料呈現區區塊 */}
         <div className="w-full">
-          {/* 1. Desktop View */}
+          {/* 1. Desktop View (電腦表格：維持每頁 5 筆進行乾淨切換) */}
           <div className="hidden md:block bg-white border border-slate-300 rounded-xl overflow-hidden shadow-sm">
             {filteredCustomers.length === 0 ? (
               <div className="text-center py-12 text-slate-500 font-bold">找不到客戶資料</div>
@@ -553,7 +556,7 @@ export default function CustomerPage() {
             )}
           </div>
 
-          {/* 2. Mobile View */}
+          {/* 2. Mobile View (🧠 🧠 終極核心升級：直接渲染 filteredCustomers 全量數據！一進來即可左右滑動看完全部) */}
           <div className="block md:hidden relative w-full overflow-hidden">
             <div 
               ref={mobileContainerRef}
@@ -561,13 +564,13 @@ export default function CustomerPage() {
               className="flex flex-row flex-nowrap overflow-x-auto snap-x snap-mandatory scrollbar-none w-full pb-2 touch-pan-x"
               style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             >
-              {paginatedCustomers.length === 0 ? (
+              {filteredCustomers.length === 0 ? (
                 <div className="bg-white border border-slate-300 rounded-xl p-12 text-center text-slate-500 font-bold w-full max-w-full snap-start snap-always shrink-0 shadow-2xs min-h-[350px] flex flex-col items-center justify-center">
                   <div className="text-2xl mb-2">🔍</div>
                   <div>找不到符合的客戶資料</div>
                 </div>
               ) : (
-                paginatedCustomers.map((customer) => {
+                filteredCustomers.map((customer) => {
                   const isLeft = customer.status === '離職';
                   return (
                     <div 
@@ -586,7 +589,7 @@ export default function CustomerPage() {
                           {isAdmin && (
                             <div className="flex gap-1.5 text-xs shrink-0">
                               <button onClick={() => handleOpenEditModal(customer)} className="text-amber-800 font-bold bg-amber-50 px-2 py-1 rounded border border-amber-300">編輯</button>
-                              <button onClick={() => handleDeleteCustomer(customer.id, customer.contact_name, customer.company_name)} className="text-red-600 font-bold bg-red-50 px-2 py-1 rounded border border-red-200">刪除</button>
+                              <button onClick={() => handleDeleteCustomer(customer.id, customer.contact_name, company_name)} className="text-red-600 font-bold bg-red-50 px-2 py-1 rounded border border-red-200">刪除</button>
                             </div>
                           )}
                         </div>
@@ -631,11 +634,11 @@ export default function CustomerPage() {
               )}
             </div>
 
-            {/* 手機版 5 筆分頁指示點 */}
-            {!loading && paginatedCustomers.length > 0 && (
+            {/* 手機版全量小圓點指標（綁定 filteredCustomers.length） */}
+            {!loading && filteredCustomers.length > 0 && (
               <div className="flex flex-col items-center justify-center mt-2 select-none">
                 <div className="flex justify-center items-center gap-1.5 flex-wrap max-w-full px-4">
-                  {paginatedCustomers.map((_, idx) => (
+                  {filteredCustomers.map((_, idx) => (
                     <span 
                       key={idx}
                       className={`h-1.5 rounded-full transition-all duration-200 ${idx === currentMobileIndex ? 'w-4 bg-blue-600' : 'w-1.5 bg-slate-300'}`}
@@ -643,16 +646,16 @@ export default function CustomerPage() {
                   ))}
                 </div>
                 <div className="text-center text-[10px] text-slate-500 font-mono font-bold mt-1">
-                  ◀ 左右滑動瀏覽本頁資料 (目前: {currentMobileIndex + 1} / {paginatedCustomers.length}) ▶
+                  ◀ 左右滑動瀏覽全量通訊錄 (目前: {currentMobileIndex + 1} / {filteredCustomers.length}) ▶
                 </div>
               </div>
             )}
           </div>
         </div>
 
-        {/* 跨平台共用導航分頁列（每頁 5 筆） */}
+        {/* 🧠 🧠 跨平台共用導航分頁列：加上 hidden md:flex！使其只出現在電腦端，手機版 100% 物理隱藏，達到零干擾 */}
         {!loading && filteredCustomers.length > 0 && (
-          <div className="bg-white border border-slate-300 rounded-xl px-4 py-3.5 flex flex-col sm:flex-row items-center justify-between text-slate-700 font-mono text-xs select-none gap-3 shadow-2xs mt-4">
+          <div className="hidden md:flex bg-white border border-slate-300 rounded-xl px-4 py-3.5 items-center justify-between text-slate-700 font-mono text-xs select-none gap-3 shadow-2xs mt-4">
             <div>
               顯示第 <span className="font-bold text-slate-900">{startIndex + 1}</span> 至 <span className="font-bold text-slate-900">{Math.min(startIndex + ITEMS_PER_PAGE, filteredCustomers.length)}</span> 筆，共 <span className="font-bold text-slate-900">{filteredCustomers.length}</span> 筆客戶資料
             </div>
@@ -723,7 +726,7 @@ export default function CustomerPage() {
               <div className="space-y-2">
                 <label className="block text-xs font-bold text-slate-600">Address</label>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div><select value={city} onChange={handleCityChange} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none text-[16px]"><option value="">選擇縣市</option>{Object.keys(taiwanDistricts).map((c) => (<option key={c} value={c}>{c}</option>))}</select></div>
+                  <div><select value={city} onChange={handleCityChange} className="w-full px-3 py-2 bg-white border border-slate-800 focus:outline-none text-[16px]"><option value="">選擇縣市</option>{Object.keys(taiwanDistricts).map((c) => (<option key={c} value={c}>{c}</option>))}</select></div>
                   <div><select value={dist} disabled={!city} onChange={(e) => setDist(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none text-[16px] disabled:opacity-40"><option value="">選擇區域</option>{city && taiwanDistricts[city].map((d) => (<option key={d} value={d}>{d}</option>))}</select></div>
                   <div><input type="text" value={detailAddress} onChange={(e) => setDetailAddress(e.target.value)} placeholder="詳細路名..." className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none text-[16px]" /></div>
                 </div>
@@ -806,7 +809,6 @@ export default function CustomerPage() {
               </h2>
               <button onClick={() => { setIsPwdModalOpen(false); setNewPassword(''); setConfirmPassword(''); }} className="text-gray-400 hover:text-slate-700 transition-colors text-sm">✕</button>
             </div>
-            {/* 🧠 確保對應呼叫無誤 */}
             <form onSubmit={handleUpdatePassword} className="p-5 space-y-4 text-xs">
               <div>
                 <label className="block font-bold text-slate-400 mb-2">輸入新密碼 (至少 6 位數)</label>
