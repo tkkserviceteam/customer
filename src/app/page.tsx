@@ -107,48 +107,75 @@ export default function CustomerPage() {
 
   // 🧠 智慧整合功能：單筆聯絡人資料轉 VCF (vCard 3.0) 格式並觸發下載
 const exportToVcf = (customer: any) => {
-    try {
-      const orgName = customer.company_name || '';
-      const vcardRows = [
-        'BEGIN:VCARD', 'VERSION:3.0',
-        `FN;CHARSET=UTF-8:${customer.contact_name || ''}`,
-        `ORG;CHARSET=UTF-8:${orgName}`,
-        `TITLE;CHARSET=UTF-8:${customer.title || ''}`,
-        customer.mobile ? `TEL;TYPE=CELL,VOICE:${customer.mobile}` : '',
-        customer.phone ? `TEL;TYPE=WORK,VOICE:${customer.phone}${customer.extension ? `,${customer.extension}` : ''}` : '',
-        'END:VCARD'
-      ].filter(Boolean);
-      
-      const vcardWithBom = '\uFEFF' + vcardRows.join('\r\n');
-      const blob = new Blob([vcardWithBom], { type: 'text/vcard' });
-      const url = URL.createObjectURL(blob);
+  try {
+    const orgName = customer.company_name || '';
 
-      // 🧠 關鍵修正：對於 iOS，我們強制讓他先觸發下載，但我們在下載後給予引導
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${customer.contact_name || '窗口'}.vcf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+    const vcardRows = [
+      'BEGIN:VCARD',
+      'VERSION:3.0',
+      `FN;CHARSET=UTF-8:${customer.contact_name || ''}`,
+      `ORG;CHARSET=UTF-8:${orgName}`,
+      `TITLE;CHARSET=UTF-8:${customer.title || ''}`,
 
-      // 給 iOS 使用者的引導訊息
-      if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
-        setTimeout(() => {
-          alert('檔案已下載。\n\n請點擊 Safari 地址欄旁的「↓」下載圖示 -> 點選該 VCF 檔案 -> iOS 就會自動彈出「加入聯絡人」的匯入介面！');
-        }, 500);
-      }
-      
-      URL.revokeObjectURL(url);
-    } catch (err: any) { alert('匯出失敗'); }
-  };
-  const updateAuthState = (session: any) => {
-    setIsAdmin(!!session);
-    if (session?.user?.email) {
-      setOperatorName(session.user.email.split('@')[0]);
-    } else {
-      setOperatorName('');
+      customer.mobile
+        ? `TEL;TYPE=CELL:${customer.mobile}`
+        : '',
+
+      customer.phone
+        ? `TEL;TYPE=WORK:${customer.phone}${
+            customer.extension ? `#${customer.extension}` : ''
+          }`
+        : '',
+
+      customer.email
+        ? `EMAIL:${customer.email}`
+        : '',
+
+      'END:VCARD'
+    ].filter(Boolean);
+
+    const vcardContent =
+      '\uFEFF' + vcardRows.join('\r\n');
+
+    const blob = new Blob(
+      [vcardContent],
+      { type: 'text/vcard;charset=utf-8' }
+    );
+
+    const url = URL.createObjectURL(blob);
+
+    const isIOS =
+      /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+    // ✅ iOS 特殊處理
+    if (isIOS) {
+      // 不使用 download
+      // 直接跳轉 blob URL
+      window.location.href = url;
+
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 3000);
+
+      return;
     }
-  };
+
+    // ✅ Android / Desktop
+    const link = document.createElement('a');
+    link.href = url;
+    link.download =
+      `${customer.contact_name || '窗口'}.vcf`;
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    URL.revokeObjectURL(url);
+
+  } catch (err: any) {
+    alert('匯出失敗');
+  }
+};
 
   const handleAutoLogout = async () => {
     await supabase.auth.signOut();
