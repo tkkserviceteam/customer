@@ -107,60 +107,77 @@ export default function CustomerPage() {
 
   // 🧠 智慧整合功能：單筆聯絡人資料轉 VCF (vCard 3.0) 格式並觸發下載
 const exportToVcf = (customer: any) => {
+
   try {
 
-    const vcard = [
+    const lines = [
+
       'BEGIN:VCARD',
       'VERSION:3.0',
 
+      // 姓名
+      `N:;${customer.contact_name || ''};;;`,
       `FN:${customer.contact_name || ''}`,
 
+      // 公司
       customer.company_name
         ? `ORG:${customer.company_name}`
         : '',
 
+      // 職稱
       customer.title
         ? `TITLE:${customer.title}`
         : '',
 
+      // 手機
       customer.mobile
         ? `TEL;TYPE=CELL:${customer.mobile}`
         : '',
 
+      // 公司電話
       customer.phone
-        ? `TEL;TYPE=WORK:${customer.phone}${
+        ? `TEL;TYPE=WORK,VOICE:${customer.phone}${
             customer.extension
-              ? `#${customer.extension}`
+              ? `,${customer.extension}`
               : ''
           }`
         : '',
 
+      // Email
       customer.email
-        ? `EMAIL:${customer.email}`
+        ? `EMAIL;TYPE=WORK:${customer.email}`
+        : '',
+
+      // 地址
+      customer.address
+        ? `ADR;TYPE=WORK:;;${customer.address};;;;`
+        : '',
+
+      // 備註
+      customer.notes
+        ? `NOTE:${customer.notes.replace(/\n/g, '\\n')}`
         : '',
 
       'END:VCARD'
 
-    ]
-    .filter(Boolean)
-    .join('\r\n');
+    ].filter(Boolean);
+
+    const vcard =
+      lines.join('\r\n');
 
     const isIOS =
       /iPad|iPhone|iPod/.test(
         navigator.userAgent
       );
 
-    // ✅ iOS 特殊處理
+    // ✅ iPhone / iPad
     if (isIOS) {
 
       const encoded =
         encodeURIComponent(vcard);
 
-      const dataUri =
+      window.location.href =
         `data:text/vcard;charset=utf-8,${encoded}`;
-
-      // Safari 直接開啟
-      window.location.href = dataUri;
 
       return;
     }
@@ -198,6 +215,7 @@ const exportToVcf = (customer: any) => {
     alert('VCF 匯出失敗');
 
   }
+
 };
   const updateAuthState = (session: any) => {
     setIsAdmin(!!session);
