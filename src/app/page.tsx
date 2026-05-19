@@ -109,10 +109,12 @@ export default function CustomerPage() {
 const exportToVcf = (customer: any) => {
     try {
       const orgName = customer.company_name || '';
+      const deptName = customer.facility_name ? `${customer.facility_name}${customer.facility_floor ? ` ${customer.facility_floor}F` : ''}` : '';
+      
       const vcardRows = [
         'BEGIN:VCARD', 'VERSION:3.0',
         `FN;CHARSET=UTF-8:${customer.contact_name || ''}`,
-        `ORG;CHARSET=UTF-8:${orgName}`,
+        `ORG;CHARSET=UTF-8:${orgName};${deptName}`,
         `TITLE;CHARSET=UTF-8:${customer.title || ''}`,
         customer.mobile ? `TEL;TYPE=CELL,VOICE:${customer.mobile}` : '',
         customer.phone ? `TEL;TYPE=WORK,VOICE:${customer.phone}${customer.extension ? `,${customer.extension}` : ''}` : '',
@@ -120,24 +122,28 @@ const exportToVcf = (customer: any) => {
       ].filter(Boolean);
       
       const vcardString = '\uFEFF' + vcardRows.join('\r\n');
-      const base64Vcard = btoa(unescape(encodeURIComponent(vcardString)));
-      const dataUri = `data:text/vcard;base64,${base64Vcard}`;
-
-      // 🧠 關鍵修正：iOS 無法在隱藏元素上點擊，改用 window.open 強制轉導
-      // 這是目前 iOS Safari 避開「無法下載此檔」錯誤最穩定的解法
-      const win = window.open(dataUri, '_blank');
       
-      if (!win) {
-        // 如果被擋了，嘗試作為降級方案
-        const link = document.createElement('a');
-        link.href = dataUri;
-        link.download = `${customer.contact_name || '窗口'}.vcf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
+      // 🧠 關鍵修正：將 UTF-8 編碼後的內容放入 Blob，並標記類型
+      const blob = new Blob([vcardString], { type: 'text/vcard;charset=utf-8' });
+      
+      // 🧠 關鍵修正：使用 navigator.msSaveOrOpenBlob (給 Windows) 或 URL.createObjectURL (給 iOS/Android)
+      const url = URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.href = url;
+      // 告訴 iOS 這是一個 vCard 檔案，強制觸發匯入
+      link.download = `${customer.contact_name || '窗口'}.vcf`;
+      
+      // 執行下載觸發
+      document.body.appendChild(link);
+      link.click();
+      
+      // 清理資源
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
     } catch (err: any) { 
-      alert('匯出名片失敗，請檢查權限'); 
+      alert('匯出名片失敗，請嘗試使用電腦版匯出'); 
     }
   };
 
