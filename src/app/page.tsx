@@ -105,6 +105,61 @@ export default function CustomerPage() {
     }
   };
 
+  // 🧠 智慧整合功能：單筆聯絡人資料轉 VCF (vCard 3.0) 格式並觸發下載
+  const exportToVcf = (customer: any) => {
+    try {
+      const orgName = customer.company_name || '';
+      const deptName = customer.facility_name ? `${customer.facility_name}${customer.facility_floor ? ` ${customer.facility_floor}F` : ''}` : '';
+      
+      const vcardRows = [
+        'BEGIN:VCARD',
+        'VERSION:3.0',
+        `FN;CHARSET=UTF-8:${customer.contact_name || ''}`,
+        `ORG;CHARSET=UTF-8:${orgName};${deptName}`,
+        `TITLE;CHARSET=UTF-8:${customer.title || ''}`,
+      ];
+
+      if (customer.mobile) {
+        vcardRows.push(`TEL;TYPE=CELL,VOICE:${customer.mobile}`);
+      }
+
+      if (customer.phone) {
+        const fullPhone = customer.phone + (customer.extension ? `,${customer.extension}` : '');
+        vcardRows.push(`TEL;TYPE=WORK,VOICE:${fullPhone}`);
+      }
+
+      if (customer.email) {
+        vcardRows.push(`EMAIL;TYPE=PREF,INTERNET:${customer.email}`);
+      }
+
+      if (customer.address) {
+        vcardRows.push(`ADR;TYPE=WORK;CHARSET=UTF-8:;;${customer.address};;;;`);
+      }
+
+      const noteParts = [];
+      if (customer.line_id) noteParts.push(`LINE ID: ${customer.line_id}`);
+      if (customer.notes) noteParts.push(`備註: ${customer.notes}`);
+      if (noteParts.length > 0) {
+        vcardRows.push(`NOTE;CHARSET=UTF-8:${noteParts.join(' \\n ')}`);
+      }
+
+      vcardRows.push('END:VCARD');
+      const vcardString = vcardRows.join('\r\n');
+
+      // 強制打入 UTF-8 BOM 檔頭，防止手機通訊錄解讀時中文字體亂碼崩塌
+      const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), vcardString], { type: 'text/vcard;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `${customer.contact_name || '窗口'}_${orgName}.vcf`;
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err: any) {
+      alert('產生名片名片失敗：' + err.message);
+    }
+  };
+
   const updateAuthState = (session: any) => {
     setIsAdmin(!!session);
     if (session?.user?.email) {
@@ -489,6 +544,7 @@ export default function CustomerPage() {
                       <th className="p-4">行動電話 (手機)</th>
                       <th className="p-4">聯絡電話 (分機)</th>
                       <th className="p-4">Line ID</th>
+                      <th className="p-4 text-center w-36">名片匯出</th>
                       {isAdmin && <th className="p-4 text-center w-32">操作</th>}
                     </tr>
                   </thead>
@@ -523,6 +579,15 @@ export default function CustomerPage() {
                           <td className="p-4 font-mono font-semibold">
                             {!isLeft && customer.line_id ? <button onClick={() => setActiveLineId(customer.line_id)} className="text-emerald-700 hover:text-emerald-600 hover:underline flex items-center gap-1 font-bold transition-colors"><span>{customer.line_id}</span><span className="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-1.5 py-0.2 rounded font-bold">QR</span></button> : <span className="text-slate-400">{customer.line_id || '--'}</span>}
                           </td>
+                          {/* 🧠 電腦版表格加裝單筆 VCF 電子名片匯出按鈕 */}
+                          <td className="p-4 text-center">
+                            <button 
+                              onClick={() => exportToVcf(customer)}
+                              className="text-xs font-bold text-blue-700 hover:text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2.5 py-1 rounded-md transition-colors"
+                            >
+                              📇 匯出名片
+                            </button>
+                          </td>
                           {isAdmin && (
                             <td className="p-4 text-center space-x-2 whitespace-nowrap text-xs font-bold">
                               <button onClick={() => handleOpenEditModal(customer)} className="text-amber-700 hover:text-amber-600 transition-colors">編輯</button>
@@ -533,7 +598,7 @@ export default function CustomerPage() {
                         </tr>
                         {isExpanded && (
                           <tr className="bg-slate-100/50 animate-in fade-in slide-in-from-top-2 duration-200">
-                            <td colSpan={isAdmin ? 7 : 6} className="p-4 border-l-2 border-blue-600">
+                            <td colSpan={isAdmin ? 8 : 7} className="p-4 border-l-2 border-blue-600">
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-slate-900 font-semibold">
                                 <div className="space-y-2 text-xs">
                                   <h4 className="text-[11px] font-bold tracking-wider text-slate-400 uppercase border-b border-slate-300 pb-1">詳細聯絡資訊</h4>
@@ -541,7 +606,7 @@ export default function CustomerPage() {
                                   <div><span className="text-slate-500 font-bold mr-2">公司地址:</span>{customer.address ? (
                                     <a href={`http://maps.google.com/?q=${encodeURIComponent(customer.address.split(/[\s\(\（]/)[0])}`} target="_blank" rel="noopener noreferrer" className="text-blue-700 font-bold hover:underline inline-flex items-center gap-1">
                                       {customer.address}
-                                      <span className="text-[10px] bg-green-100 text-green-800 border border-green-800 px-1 rounded font-bold">地圖</span>
+                                      <span className="text-[10px] bg-purple-100 text-purple-800 border border-purple-300 px-1 rounded font-bold">地圖</span>
                                     </a>
                                   ) : <span className="text-slate-400">未提供</span>}</div>
                                 </div>
@@ -591,7 +656,6 @@ export default function CustomerPage() {
                             </div>
                             <div className="text-xs text-slate-600 font-bold mt-1 ml-0.5">{customer.facility_name || '無特定廠區'} {customer.facility_floor ? ` • ${customer.facility_floor}F` : ''}</div>
                           </div>
-                          {/* 🧠 補齊物件名稱，完全解除 Cannot find name 報錯 */}
                           {isAdmin && (
                             <div className="flex gap-1.5 text-xs shrink-0" onClick={(e) => e.stopPropagation()}>
                               <button onClick={() => handleOpenEditModal(customer)} className="text-amber-800 font-bold bg-amber-50 px-2 py-1 rounded border border-amber-300">編輯</button>
@@ -626,13 +690,25 @@ export default function CustomerPage() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-4 gap-1.5 pt-2 border-t border-slate-100 font-mono text-[11px] font-bold mt-2">
-                        {!isLeft && customer.mobile ? <a href={`tel:${customer.mobile}`} className="bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-300 text-center py-2 rounded-lg shadow-2xs"><span>撥打手機</span></a> : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無手機</div>}
-                        {!isLeft && customer.phone ? <a href={`tel:${customer.phone}`} className="bg-orange-50 hover:bg-orange-100 text-orange-800 border border-orange-300 text-center py-2 rounded-lg shadow-2xs"><span>總機分機</span></a> : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無總機</div>}
-                        {!isLeft && customer.line_id ? <button onClick={() => setActiveLineId(customer.line_id)} className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-center py-2 rounded-lg shadow-2xs"><span>LINE</span></button> : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無 LINE</div>}
-                        {customer.address ? (
-                          <a href={`http://maps.google.com/?q=${encodeURIComponent(customer.address.split(/[\s\(\環境]/)[0])}`} target="_blank" rel="noopener noreferrer" className="bg-red-50 hover:bg-red-100 text-red-800 border border-red-300 text-center py-2 rounded-lg shadow-2xs"><span>導航</span></a>
-                        ) : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無地址</div>}
+                      {/* 🧠 手機端工具按鈕重組：重構為更實用的網格排版，強勢加入「📇 名片」匯出按鈕，防指尖誤觸 */}
+                      <div className="space-y-1.5 pt-2 border-t border-slate-100 font-mono text-[11px] font-bold">
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {!isLeft && customer.mobile ? <a href={`tel:${customer.mobile}`} className="bg-blue-600 hover:bg-blue-700 text-white text-center py-2 rounded-lg transition-colors shadow-2xs flex items-center justify-center gap-1"><span>撥打手機</span></a> : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無手機</div>}
+                          {!isLeft && customer.phone ? <a href={`tel:${customer.phone}`} className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-center py-2 rounded-lg shadow-2xs flex items-center justify-center gap-1"><span>總機分機</span></a> : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無總機</div>}
+                        </div>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {!isLeft && customer.line_id ? <button onClick={() => setActiveLineId(customer.line_id)} className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-center py-2 rounded-lg shadow-2xs"><span>LINE</span></button> : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無 LINE</div>}
+                          {customer.address ? (
+                            <a href={`http://maps.google.com/?q=${encodeURIComponent(customer.address.split(/[\s\(\環境]/)[0])}`} target="_blank" rel="noopener noreferrer" className="bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-300 text-slate-200 rounded-lg shadow-2xs text-center py-2"><span>導航</span></a>
+                          ) : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無地址</div>}
+                          {/* 下載 VCF 電子名片 */}
+                          <button 
+                            onClick={() => exportToVcf(customer)}
+                            className="bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-300 text-center py-2 rounded-lg shadow-2xs font-bold"
+                          >
+                            📇 名片
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -732,7 +808,7 @@ export default function CustomerPage() {
               <div className="space-y-2">
                 <label className="block text-xs font-bold text-slate-600">Address</label>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div><select value={city} onChange={handleCityChange} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none text-[16px]"><option value="">選擇縣市</option>{Object.keys(taiwanDistricts).map((c) => (<option key={c} value={c}>{c}</option>))}</select></div>
+                  <div><select value={city} onChange={handleCityChange} className="w-full px-3 py-2 bg-white border border-slate-850 focus:outline-none text-[16px]"><option value="">選擇縣市</option>{Object.keys(taiwanDistricts).map((c) => (<option key={c} value={c}>{c}</option>))}</select></div>
                   <div><select value={dist} disabled={!city} onChange={(e) => setDist(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none text-[16px] disabled:opacity-40"><option value="">選擇區域</option>{city && taiwanDistricts[city].map((d) => (<option key={d} value={d}>{d}</option>))}</select></div>
                   <div><input type="text" value={detailAddress} onChange={(e) => setDetailAddress(e.target.value)} placeholder="詳細路名..." className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none text-[16px]" /></div>
                 </div>
@@ -791,31 +867,48 @@ export default function CustomerPage() {
               )}
             </div>
           </div>
-) : (
-  /* 🧠 智慧優化：縮牆防擋動線按鈕。
-     利用 translate-x 讓它平時往右縮進 70% (僅露出📊圖標)，
-     當 hover (電腦端) 或 group-hover / focus (手機端觸控) 時才流暢向左滑出完整標籤。
-  */
-  <button
-    onClick={() => setIsLogPanelOpen(true)}
-    className="h-10 bg-white hover:bg-slate-100 text-slate-900 border border-slate-400 rounded-l-full flex items-center gap-2 shadow-md transition-all duration-300 text-xs font-bold select-none group fixed bottom-4 -right-24 hover:right-0 active:scale-95 tracking-wider pr-4 pl-3 z-40"
-    style={{ transform: 'translateX(0)' }} // 移除舊有衝突，純靠 Tailwind 邊距平滑推拉
-  >
-    {/* 📊 圖標區：加上常駐向左晃動微動畫，提示使用者它躲在這裡 */}
-    <span className="text-sm group-hover:scale-110 transition-transform select-none">
-      📊
-    </span>
-    
-    {/* 文字區：貼牆時藏在右側邊界外，展開時才秀出來 */}
-    <span className="whitespace-nowrap">最近變更紀錄</span>
-    
-    {/* 脈衝提示紅點 */}
-    {logs.length > 0 && (
-      <span className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-pulse shrink-0"></span>
-    )}
-  </button>
-)}
+        ) : (
+          <button
+            onClick={() => setIsLogPanelOpen(true)}
+            className="h-10 bg-white hover:bg-slate-100 text-slate-900 border border-slate-400 rounded-l-full flex items-center gap-2 shadow-md transition-all duration-300 text-xs font-bold select-none group fixed bottom-4 -right-24 hover:right-0 active:scale-95 tracking-wider pr-4 pl-3 z-40"
+            style={{ transform: 'translateX(0)' }}
+          >
+            <span className="text-sm group-hover:scale-110 transition-transform select-none">📊</span>
+            <span className="whitespace-nowrap">最近變更紀錄</span>
+            {logs.length > 0 && (
+              <span className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-pulse shrink-0"></span>
+            )}
+          </button>
+        )}
       </div>
+
+      {/* 修改密碼彈出視窗 */}
+      {isPwdModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
+          <div className="w-full max-w-sm bg-white border border-slate-300 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 text-black font-bold">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-100">
+              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5 tracking-wider">
+                <span>🔐 修改管理員密碼</span>
+              </h2>
+              <button onClick={() => { setIsPwdModalOpen(false); setNewPassword(''); setConfirmPassword(''); }} className="text-gray-400 hover:text-slate-700 transition-colors text-sm">✕</button>
+            </div>
+            <form onSubmit={handleUpdatePassword} className="p-5 space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-400 mb-2">輸入新密碼 (至少 6 位數)</label>
+                <input type="password" required autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="請輸入全新安全密碼" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-black text-sm focus:outline-none focus:ring-2 focus:ring-blue-600" />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-400 mb-2">再次確認新密碼</label>
+                <input type="password" required autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="請再次輸入新密碼" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-black text-sm focus:outline-none focus:ring-2 focus:ring-blue-600" />
+              </div>
+              <div className="pt-2 flex justify-end gap-2 bg-slate-50 p-3 -mx-5 -mb-5 border-t border-slate-200">
+                <button type="button" onClick={() => { setIsPwdModalOpen(false); setNewPassword(''); setConfirmPassword(''); }} className="px-4 py-2 bg-white border border-slate-400 text-slate-700 rounded-md font-bold">CANCEL</button>
+                <button type="submit" disabled={pwdUpdating} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-bold shadow transition-colors disabled:opacity-50">{pwdUpdating ? '同步更新中...' : '確認重設密碼'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );
