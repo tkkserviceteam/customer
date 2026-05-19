@@ -71,7 +71,7 @@ export default function CustomerPage() {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const IDLE_TIMEOUT_DURATION = 10 * 60 * 1000;
 
-  // --- 2. 函式宣告提升處理 ---
+  // --- 2. 基礎底層函式宣告（優先權最高，確保隨叫隨到） ---
   const fetchCustomers = async () => {
     try {
       setLoading(true);
@@ -160,6 +160,17 @@ export default function CustomerPage() {
     }
   };
 
+  // 🧠 核心位置修正：把 writeLog 拉到業務邏輯最上方，澈底消滅 TypeScript 的 Cannot find name 未定義錯誤
+  const writeLog = async (actionType: string, customerName: string, details: string) => {
+    try {
+      const { error } = await supabase.from('customer_logs').insert([{ operator: operatorName || '訪客', action_type: actionType, customer_name: customerName, details: details }]);
+      if (error) throw error;
+      await fetchLogs();
+    } catch (error: any) {
+      alert(`日誌寫入失敗: ${error.message}`);
+    }
+  };
+
   // --- 3. 副作用處理 ---
   useEffect(() => {
     const checkAuthAndFetch = async () => {
@@ -196,7 +207,7 @@ export default function CustomerPage() {
     }
   }, [searchTerm, showArchived]);
 
-  // --- 4. 格式化與輔助方法 ---
+  // --- 4. 格式化與業務處理方法 ---
   const formatMobileDisplay = (num: string) => {
     if (!num) return '--';
     const clean = num.replace(/\D/g, '');
@@ -309,6 +320,19 @@ export default function CustomerPage() {
     setIsModalOpen(true);
   };
 
+  const handleDeleteCustomer = async (id: string, name: string, company: string) => {
+    if (!confirm(`確定要將客戶「${name}」的通訊資料徹底從資料庫中刪除嗎？`)) return;
+    try {
+      const { error } = await supabase.from('customers').delete().eq('id', id);
+      if (error) throw error;
+      alert('資料已成功刪除！');
+      await writeLog('刪除', company, `移成了聯絡窗口: ${name}`);
+      await fetchCustomers();
+    } catch (error) {
+      alert('刪除失敗，權限被拒絕。');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -380,7 +404,7 @@ export default function CustomerPage() {
 
   const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE) || 1;
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedCustomers = filteredCustomers.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const paginatedCustomers = customers.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   if (!isMounted) {
     return (
@@ -499,7 +523,7 @@ export default function CustomerPage() {
                             <td className="p-4 text-center space-x-2 whitespace-nowrap text-xs font-bold">
                               <button onClick={() => handleOpenEditModal(customer)} className="text-amber-700 hover:text-amber-600 transition-colors">編輯</button>
                               <span className="text-slate-300">|</span>
-                              <button onClick={() => handleDeleteCustomer(customer.id, customer.contact_name, customer.company_name)} className="text-red-600 hover:text-red-400 transition-colors">刪除</button>
+                              <button onClick={() => handleDeleteCustomer(customer.id, customer.contact_name, customer.company_name)} className="text-red-600 hover:text-red-450 transition-colors">刪除</button>
                             </td>
                           )}
                         </tr>
@@ -563,7 +587,6 @@ export default function CustomerPage() {
                             </div>
                             <div className="text-xs text-slate-600 font-bold mt-1 ml-0.5">{customer.facility_name || '無特定廠區'} {customer.facility_floor ? ` • ${customer.facility_floor}F` : ''}</div>
                           </div>
-                          {/* 🧠 🧠 最終修正：在手機卡片刪除方法前精確補回物件前綴，變更為 customer.company_name 排除未定義錯誤 */}
                           {isAdmin && (
                             <div className="flex gap-1.5 text-xs shrink-0" onClick={(e) => e.stopPropagation()}>
                               <button onClick={() => handleOpenEditModal(customer)} className="text-amber-800 font-bold bg-amber-50 px-2 py-1 rounded border border-amber-300">編輯</button>
@@ -612,7 +635,7 @@ export default function CustomerPage() {
               )}
             </div>
 
-            {/* 手機版小圓點導引 */}
+            {/* 手機版全量小圓點指標 */}
             {!loading && filteredCustomers.length > 0 && (
               <div className="flex flex-col items-center justify-center mt-2 select-none">
                 <div className="flex justify-center items-center gap-1.5 flex-wrap max-w-full px-4">
@@ -661,7 +684,7 @@ export default function CustomerPage() {
               
               {!editingCustomerId && (
                 <div className="bg-slate-50 border border-dashed border-slate-400 rounded-xl p-3 md:p-4 space-y-2">
-                  <div className="text-xs font-bold text-blue-700 tracking-wider">⚡ 管理員電子名片快捷匯入</div>
+                  <div className="text-xs font-bold text-blue-700 tracking-wider">⚡ 開發人員電子名片快捷匯入</div>
                   <div className="bg-white p-2.5 rounded-lg border border-slate-300 text-xs shadow-2xs">
                     <input type="file" accept=".vcf" onChange={handleVcfImport} className="w-full text-[11px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-semibold file:bg-blue-50 file:text-blue-600 hover:file:bg-blue-100 cursor-pointer" />
                   </div>
@@ -704,7 +727,7 @@ export default function CustomerPage() {
               <div className="space-y-2">
                 <label className="block text-xs font-bold text-slate-600">Address</label>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div><select value={city} onChange={handleCityChange} className="w-full px-3 py-2 bg-white border border-slate-800 focus:outline-none text-[16px]"><option value="">選擇縣市</option>{Object.keys(taiwanDistricts).map((c) => (<option key={c} value={c}>{c}</option>))}</select></div>
+                  <div><select value={city} onChange={handleCityChange} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none text-[16px]"><option value="">選擇縣市</option>{Object.keys(taiwanDistricts).map((c) => (<option key={c} value={c}>{c}</option>))}</select></div>
                   <div><select value={dist} disabled={!city} onChange={(e) => setDist(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none text-[16px] disabled:opacity-40"><option value="">選擇區域</option>{city && taiwanDistricts[city].map((d) => (<option key={d} value={d}>{d}</option>))}</select></div>
                   <div><input type="text" value={detailAddress} onChange={(e) => setDetailAddress(e.target.value)} placeholder="詳細路名..." className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none text-[16px]" /></div>
                 </div>
@@ -726,7 +749,7 @@ export default function CustomerPage() {
             <h3 className="text-lg font-bold text-slate-900 mb-1 tracking-wide font-mono">LINE QR CODE</h3>
             <p className="text-xs text-blue-700 font-bold mb-4 font-mono">ID: <span className="select-all">{activeLineId}</span></p>
             <div className="bg-slate-50 p-3 rounded-lg inline-block mb-4 border border-slate-200">
-              <img src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`https://line.me/R/ti/p/~${activeLineId}`)}`} alt="Line QR Code" width={180} height={180} className="mx-auto" />
+              <img src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent ImgUrlLink => `https://line.me/R/ti/p/~${activeLineId}`}`} alt="Line QR Code" width={180} height={180} className="mx-auto" />
             </div>
             <p className="text-xs text-slate-400 mb-5">請使用手機 LINE 應用程式掃描</p>
             <button onClick={() => setActiveLineId(null)} className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-bold border border-slate-300 text-xs font-mono transition-colors">CLOSE</button>
@@ -776,34 +799,6 @@ export default function CustomerPage() {
           </button>
         )}
       </div>
-
-      {/* 修改密碼彈出視窗 */}
-      {isPwdModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
-          <div className="w-full max-w-sm bg-white border border-slate-300 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 text-black font-bold">
-            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-100">
-              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5 tracking-wider">
-                <span>🔐 修改管理員密碼</span>
-              </h2>
-              <button onClick={() => { setIsPwdModalOpen(false); setNewPassword(''); setConfirmPassword(''); }} className="text-gray-400 hover:text-slate-700 transition-colors text-sm">✕</button>
-            </div>
-            <form onSubmit={handleUpdatePassword} className="p-5 space-y-4 text-xs">
-              <div>
-                <label className="block font-bold text-slate-400 mb-2">輸入新密碼 (至少 6 位數)</label>
-                <input type="password" required autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="請輸入全新安全密碼" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-black text-sm focus:outline-none focus:ring-2 focus:ring-blue-600" />
-              </div>
-              <div>
-                <label className="block font-bold text-slate-400 mb-2">再次確認新密碼</label>
-                <input type="password" required autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="請再次輸入新密碼" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-black text-sm focus:outline-none focus:ring-2 focus:ring-blue-600" />
-              </div>
-              <div className="pt-2 flex justify-end gap-2 bg-slate-50 p-3 -mx-5 -mb-5 border-t border-slate-200">
-                <button type="button" onClick={() => { setIsPwdModalOpen(false); setNewPassword(''); setConfirmPassword(''); }} className="px-4 py-2 bg-white border border-slate-400 text-slate-700 rounded-md font-bold">CANCEL</button>
-                <button type="submit" disabled={pwdUpdating} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-bold shadow transition-colors disabled:opacity-50">{pwdUpdating ? '同步更新中...' : '確認重設密碼'}</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
     </div>
   );
