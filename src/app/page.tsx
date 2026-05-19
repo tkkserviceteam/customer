@@ -791,17 +791,30 @@ export default function CustomerPage() {
               )}
             </div>
           </div>
-        ) : (
-          <button
-            onClick={() => setIsLogPanelOpen(true)}
-            className="px-4 h-10 bg-white hover:bg-slate-100 text-slate-900 border border-slate-400 rounded-full flex items-center gap-2 shadow-md transition-all hover:scale-102 active:scale-98 text-xs font-bold select-none group relative tracking-wider"
-          >
-            <span>📊</span>
-            {logs.length > 0 && (
-              <span className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-pulse"></span>
-            )}
-          </button>
-        )}
+) : (
+  /* 🧠 智慧優化：縮牆防擋動線按鈕。
+     利用 translate-x 讓它平時往右縮進 70% (僅露出📊圖標)，
+     當 hover (電腦端) 或 group-hover / focus (手機端觸控) 時才流暢向左滑出完整標籤。
+  */
+  <button
+    onClick={() => setIsLogPanelOpen(true)}
+    className="h-10 bg-white hover:bg-slate-100 text-slate-900 border border-slate-400 rounded-l-full flex items-center gap-2 shadow-md transition-all duration-300 text-xs font-bold select-none group fixed bottom-4 -right-24 hover:right-0 active:scale-95 tracking-wider pr-4 pl-3 z-40"
+    style={{ transform: 'translateX(0)' }} // 移除舊有衝突，純靠 Tailwind 邊距平滑推拉
+  >
+    {/* 📊 圖標區：加上常駐向左晃動微動畫，提示使用者它躲在這裡 */}
+    <span className="text-sm group-hover:scale-110 transition-transform select-none">
+      📊
+    </span>
+    
+    {/* 文字區：貼牆時藏在右側邊界外，展開時才秀出來 */}
+    <span className="whitespace-nowrap">最近變更紀錄</span>
+    
+    {/* 脈衝提示紅點 */}
+    {logs.length > 0 && (
+      <span className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-pulse shrink-0"></span>
+    )}
+  </button>
+)}
       </div>
 
     </div>
