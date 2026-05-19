@@ -106,58 +106,32 @@ export default function CustomerPage() {
   };
 
   // 🧠 智慧整合功能：單筆聯絡人資料轉 VCF (vCard 3.0) 格式並觸發下載
-  const exportToVcf = (customer: any) => {
+const exportToVcf = (customer: any) => {
     try {
       const orgName = customer.company_name || '';
       const deptName = customer.facility_name ? `${customer.facility_name}${customer.facility_floor ? ` ${customer.facility_floor}F` : ''}` : '';
       
       const vcardRows = [
-        'BEGIN:VCARD',
-        'VERSION:3.0',
+        'BEGIN:VCARD', 'VERSION:3.0',
         `FN;CHARSET=UTF-8:${customer.contact_name || ''}`,
         `ORG;CHARSET=UTF-8:${orgName};${deptName}`,
         `TITLE;CHARSET=UTF-8:${customer.title || ''}`,
-      ];
-
-      if (customer.mobile) {
-        vcardRows.push(`TEL;TYPE=CELL,VOICE:${customer.mobile}`);
-      }
-
-      if (customer.phone) {
-        const fullPhone = customer.phone + (customer.extension ? `,${customer.extension}` : '');
-        vcardRows.push(`TEL;TYPE=WORK,VOICE:${fullPhone}`);
-      }
-
-      if (customer.email) {
-        vcardRows.push(`EMAIL;TYPE=PREF,INTERNET:${customer.email}`);
-      }
-
-      if (customer.address) {
-        vcardRows.push(`ADR;TYPE=WORK;CHARSET=UTF-8:;;${customer.address};;;;`);
-      }
-
-      const noteParts = [];
-      if (customer.line_id) noteParts.push(`LINE ID: ${customer.line_id}`);
-      if (customer.notes) noteParts.push(`備註: ${customer.notes}`);
-      if (noteParts.length > 0) {
-        vcardRows.push(`NOTE;CHARSET=UTF-8:${noteParts.join(' \\n ')}`);
-      }
-
-      vcardRows.push('END:VCARD');
-      const vcardString = vcardRows.join('\r\n');
-
-      // 強制打入 UTF-8 BOM 檔頭，防止手機通訊錄解讀時中文字體亂碼崩塌
-      const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), vcardString], { type: 'text/vcard;charset=utf-8;' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = `${customer.contact_name || '窗口'}_${orgName}.vcf`;
+        customer.mobile ? `TEL;TYPE=CELL,VOICE:${customer.mobile}` : '',
+        customer.phone ? `TEL;TYPE=WORK,VOICE:${customer.phone}${customer.extension ? `,${customer.extension}` : ''}` : '',
+        'END:VCARD'
+      ].filter(Boolean);
       
+      const vcardWithBom = '\uFEFF' + vcardRows.join('\r\n');
+      const base64Vcard = btoa(unescape(encodeURIComponent(vcardWithBom)));
+      
+      const link = document.createElement('a');
+      link.href = `data:text/vcard;base64,${base64Vcard}`;
+      link.download = `${customer.contact_name || '窗口'}.vcf`;
+      link.setAttribute('target', '_blank');
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-    } catch (err: any) {
-      alert('產生名片名片失敗：' + err.message);
-    }
+    } catch (err: any) { alert('匯出名片失敗'); }
   };
 
   const updateAuthState = (session: any) => {
