@@ -60,9 +60,9 @@ export default function CustomerPage() {
   const [isLogPanelOpen, setIsLogPanelOpen] = useState(false);
   const logPanelRef = useRef<HTMLDivElement>(null);
 
-  // 全系統分頁控制狀態（電腦端單頁上限 10 筆，手機端滑動範圍同步為這 10 筆）
+  // 全系統分頁控制狀態（限制每頁顯示 10 筆）
   const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 10;
+  const ITEMS_PER_PAGE = 5;
 
   // 手機版左右滑動小卡的當前焦點索引與 Ref
   const [currentMobileIndex, setCurrentMobileIndex] = useState(0);
@@ -231,7 +231,7 @@ export default function CustomerPage() {
     }
   };
 
-  // 智慧聯動：當輸入搜尋關鍵字或勾選切換時，立刻重設手機版小圓點索引並將滾動條拉回第 1 筆
+  // 智慧聯動：當輸入搜尋關鍵字或勾選切換時，自動將滾動條拉回第 1 筆
   useEffect(() => {
     setCurrentMobileIndex(0);
     if (mobileContainerRef.current) {
@@ -371,7 +371,7 @@ export default function CustomerPage() {
       const mobileRegex = /^09\d{8}$/;
       
       if (!mobileRegex.test(cleanedMobile)) {
-        alert(`❌ 行動電話格式錯誤：\n必須為 09 開開且剛好「10 碼純數字」！\n(您目前輸入了 ${cleanedMobile.length} 碼，請檢查是否少填或多填)`);
+        alert(`❌ 行動電話格式錯誤：\n必須為 09 開頭且剛好「10 碼純數字」！\n(您目前輸入了 ${cleanedMobile.length} 碼，請檢查是否少填或多填)`);
         return;
       }
       formData.mobile = cleanedMobile;
@@ -425,8 +425,6 @@ export default function CustomerPage() {
 
   const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE) || 1;
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  
-  // 🧠 核心分流控制：前台/後台一律共享當前頁面的 10 筆資料片段，保障數據流絕對穩定
   const paginatedCustomers = filteredCustomers.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   if (!isMounted) {
@@ -471,7 +469,14 @@ export default function CustomerPage() {
 
         {/* 工具列區塊 */}
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <input type="text" placeholder="搜尋公司、廠區、聯絡人..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }} className="w-full md:w-96 px-4 py-2 bg-white border border-slate-400 rounded-lg text-black text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-blue-600 font-medium placeholder-slate-500 shadow-2xs" />
+          {/* 🧠 智慧防跑版核心 A：將主搜尋框的字體大小強制設定為 text-[16px]，徹底禁止 iOS 鍵盤彈出時的 Auto-Zoom 偏移！ */}
+          <input 
+            type="text" 
+            placeholder="搜尋公司、廠區、聯絡人..." 
+            value={searchTerm} 
+            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }} 
+            className="w-full md:w-96 px-4 py-2 bg-white border border-slate-400 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-600 font-medium placeholder-slate-500 shadow-2xs text-[16px]" 
+          />
           
           {!isAdmin && (
             <label className="flex items-center gap-2 text-xs md:text-sm text-slate-800 font-bold cursor-pointer select-none bg-white border border-slate-400 rounded-lg px-3 py-2 hover:bg-slate-50 transition-colors shadow-2xs">
@@ -481,6 +486,7 @@ export default function CustomerPage() {
           )}
         </div>
 
+        {/* 資料呈現區區塊 */}
         {loading ? (
           <div className="text-center py-12 text-slate-600 font-bold font-mono">資料載入中...</div>
         ) : (
@@ -508,64 +514,40 @@ export default function CustomerPage() {
                         const isLeft = customer.status === '離職';
                         const isExpanded = !!expandedCustomerIds[customer.id];
                         return (
-                          <>
-                            <tr key={customer.id} className={`transition-colors ${isLeft ? 'bg-slate-100/80 opacity-50' : 'hover:bg-slate-50'}`}>
-                              <td className="p-4 whitespace-nowrap">
-                                <span className={`px-2 py-0.5 text-xs font-bold rounded-md ${isLeft ? 'bg-rose-100 text-rose-800 border border-rose-300' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'} border`}>
-                                  {customer.status || '在職'}
-                                </span>
+                          <tr key={customer.id} className={`transition-colors ${isLeft ? 'bg-slate-100/80 opacity-50' : 'hover:bg-slate-50'}`}>
+                            <td className="p-4 whitespace-nowrap">
+                              <span className={`px-2 py-0.5 text-xs font-bold rounded-md ${isLeft ? 'bg-rose-100 text-rose-800 border border-rose-300' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'} border`}>
+                                {customer.status || '在職'}
+                              </span>
+                            </td>
+                            <td className="p-4 cursor-pointer select-none group" onClick={() => toggleRowExpand(customer.id)}>
+                              <div className="flex items-center gap-2">
+                                <span className={`text-xs text-slate-400 group-hover:text-blue-600 transition-transform duration-200 ${isExpanded ? 'rotate-90 text-blue-600' : ''}`}>▶</span>
+                                <div className={`font-bold ${isLeft ? 'text-slate-500' : 'text-black group-hover:text-blue-600 transition-colors'}`}>{customer.company_name}</div>
+                              </div>
+                              <div className="text-xs text-slate-600 font-bold mt-0.5 ml-4 font-mono">{customer.facility_name || '--'} {customer.facility_floor ? `(${customer.facility_floor}F)` : ''}</div>
+                            </td>
+                            <td className="p-4">
+                              <div className={`font-bold ${isLeft ? 'text-slate-500' : 'text-slate-900'}`}>{customer.contact_name}</div>
+                              <div className="text-xs text-slate-600 font-semibold mt-0.5">{customer.title || '--'}</div>
+                            </td>
+                            <td className="p-4 text-blue-700 font-mono font-bold tracking-wide">
+                              {!isLeft && customer.mobile ? <a href={`tel:${customer.mobile}`} className="hover:text-blue-600 hover:underline transition-colors">{formatMobileDisplay(customer.mobile)}</a> : <span className="text-slate-400">{formatMobileDisplay(customer.mobile)}</span>}
+                            </td>
+                            <td className="p-4 text-slate-900 font-mono font-medium">
+                              {!isLeft && customer.phone ? <a href={`tel:${customer.phone}`} className="text-blue-700 hover:text-blue-600 hover:underline transition-colors">{formatPhoneDisplay(customer.phone)}{customer.extension ? ` #${customer.extension}` : ''}</a> : <span className="text-slate-400">{formatPhoneDisplay(customer.phone) || '--'}</span>}
+                            </td>
+                            <td className="p-4 font-mono font-semibold">
+                              {!isLeft && customer.line_id ? <button onClick={() => setActiveLineId(customer.line_id)} className="text-emerald-700 hover:text-emerald-600 hover:underline flex items-center gap-1 font-bold transition-colors"><span>{customer.line_id}</span><span className="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-1.5 py-0.2 rounded font-bold">QR</span></button> : <span className="text-slate-400">{customer.line_id || '--'}</span>}
+                            </td>
+                            {isAdmin && (
+                              <td className="p-4 text-center space-x-2 whitespace-nowrap text-xs font-bold">
+                                <button onClick={() => handleOpenEditModal(customer)} className="text-amber-700 hover:text-amber-600 transition-colors">編輯</button>
+                                <span className="text-slate-300">|</span>
+                                <button onClick={() => handleDeleteCustomer(customer.id, customer.contact_name, customer.company_name)} className="text-red-600 hover:text-red-400 transition-colors">刪除</button>
                               </td>
-                              <td className="p-4 cursor-pointer select-none group" onClick={() => toggleRowExpand(customer.id)}>
-                                <div className="flex items-center gap-2">
-                                  <span className={`text-xs text-slate-400 group-hover:text-blue-600 transition-transform duration-200 ${isExpanded ? 'rotate-90 text-blue-600' : ''}`}>▶</span>
-                                  <div className={`font-bold ${isLeft ? 'text-slate-500' : 'text-black group-hover:text-blue-600 transition-colors'}`}>{customer.company_name}</div>
-                                </div>
-                                <div className="text-xs text-slate-600 font-bold mt-0.5 ml-4 font-mono">{customer.facility_name || '--'} {customer.facility_floor ? `(${customer.facility_floor}F)` : ''}</div>
-                              </td>
-                              <td className="p-4">
-                                <div className={`font-bold ${isLeft ? 'text-slate-500' : 'text-slate-900'}`}>{customer.contact_name}</div>
-                                <div className="text-xs text-slate-600 font-semibold mt-0.5">{customer.title || '--'}</div>
-                              </td>
-                              <td className="p-4 text-blue-700 font-mono font-bold tracking-wide">
-                                {!isLeft && customer.mobile ? <a href={`tel:${customer.mobile}`} className="hover:text-blue-600 hover:underline transition-colors">{formatMobileDisplay(customer.mobile)}</a> : <span className="text-slate-400">{formatMobileDisplay(customer.mobile)}</span>}
-                              </td>
-                              <td className="p-4 text-slate-900 font-mono font-medium">
-                                {!isLeft && customer.phone ? <a href={`tel:${customer.phone}`} className="text-blue-700 hover:text-blue-600 hover:underline transition-colors">{formatPhoneDisplay(customer.phone)}{customer.extension ? ` #${customer.extension}` : ''}</a> : <span className="text-slate-400">{formatPhoneDisplay(customer.phone) || '--'}</span>}
-                              </td>
-                              <td className="p-4 font-mono font-semibold">
-                                {!isLeft && customer.line_id ? <button onClick={() => setActiveLineId(customer.line_id)} className="text-emerald-700 hover:text-emerald-600 hover:underline flex items-center gap-1 font-bold transition-colors"><span>{customer.line_id}</span><span className="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-1.5 py-0.2 rounded font-bold">QR</span></button> : <span className="text-slate-400">{customer.line_id || '--'}</span>}
-                              </td>
-                              {isAdmin && (
-                                <td className="p-4 text-center space-x-2 whitespace-nowrap text-xs font-bold">
-                                  <button onClick={() => handleOpenEditModal(customer)} className="text-amber-700 hover:text-amber-600 transition-colors">編輯</button>
-                                  <span className="text-slate-300">|</span>
-                                  <button onClick={() => handleDeleteCustomer(customer.id, customer.contact_name, customer.company_name)} className="text-red-600 hover:text-red-400 transition-colors">刪除</button>
-                                </td>
-                              )}
-                            </tr>
-                            {isExpanded && (
-                              <tr className="bg-slate-100/50 animate-in fade-in slide-in-from-top-2 duration-200">
-                                <td colSpan={isAdmin ? 7 : 6} className="p-4 border-l-2 border-blue-600">
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-slate-900 font-semibold">
-                                    <div className="space-y-2 text-xs">
-                                      <h4 className="text-[11px] font-bold tracking-wider text-slate-400 uppercase border-b border-slate-300 pb-1">詳細聯絡資訊</h4>
-                                      <div><span className="text-slate-500 font-bold mr-2">電子郵件:</span>{customer.email ? <a href={`mailto:${customer.email}`} className="text-blue-700 font-bold hover:underline">{customer.email}</a> : <span className="text-slate-400">未提供</span>}</div>
-                                      <div><span className="text-slate-500 font-bold mr-2">公司地址:</span>{customer.address ? (
-                                        <a href={`http://maps.google.com/?q=${encodeURIComponent(customer.address.split(/[\s\(\（]/)[0])}`} target="_blank" rel="noopener noreferrer" className="text-blue-700 font-bold hover:underline inline-flex items-center gap-1">
-                                          {customer.address}
-                                          <span className="text-[10px] bg-purple-100 text-purple-800 border border-purple-300 px-1 rounded font-bold">地圖</span>
-                                        </a>
-                                      ) : <span className="text-slate-400">未提供</span>}</div>
-                                    </div>
-                                    <div className="space-y-2">
-                                      <h4 className="text-[11px] font-bold tracking-wider text-slate-400 uppercase border-b border-slate-300 pb-1">備註說明</h4>
-                                      <div className="bg-white p-3 rounded-lg border border-slate-300 text-slate-900 font-mono text-xs shadow-2xs leading-relaxed font-medium">{customer.notes || '暫無額外備註說明資訊。'}</div>
-                                    </div>
-                                  </div>
-                                </td>
-                              </tr>
                             )}
-                          </>
+                          </tr>
                         );
                       })}
                     </tbody>
@@ -574,17 +556,32 @@ export default function CustomerPage() {
               )}
             </div>
 
-            {/* 2. Mobile View (🧠 手機左右滑動單筆呈現 + 智慧防擠壓機制) */}
+            {/* 電腦端分頁列 */}
+            {filteredCustomers.length > 0 && (
+              <div className="hidden md:flex bg-slate-50 border border-slate-300 border-t-0 rounded-b-xl px-4 py-3.5 items-center justify-between text-slate-700 font-mono text-xs select-none shadow-2xs">
+                <div>
+                  顯示第 <span className="font-bold text-slate-900">{startIndex + 1}</span> 至 <span className="font-bold text-slate-900">{Math.min(startIndex + ITEMS_PER_PAGE, filteredCustomers.length)}</span> 筆，共 <span className="font-bold text-slate-900">{filteredCustomers.length}</span> 筆客戶資料
+                </div>
+                <div className="flex items-center gap-1 flex-wrap justify-center">
+                  <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-2.5 py-1 bg-white border border-slate-300 rounded hover:bg-slate-100 transition-colors disabled:opacity-40 font-bold text-[11px] sm:text-xs">≪ 首頁</button>
+                  <button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1} className="px-2.5 py-1 bg-white border border-slate-300 rounded hover:bg-slate-100 transition-colors disabled:opacity-40 font-bold text-[11px] sm:text-xs">＜ 上頁</button>
+                  <span className="px-2 sm:px-4 font-bold text-slate-900 text-[11px] sm:text-xs">頁碼 {currentPage} / {totalPages}</span>
+                  <button onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages} className="px-2.5 py-1 bg-white border border-slate-300 rounded hover:bg-slate-100 transition-colors disabled:opacity-40 font-bold text-[11px] sm:text-xs">下頁 ＞</button>
+                  <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-2.5 py-1 bg-white border border-slate-300 rounded hover:bg-slate-100 transition-colors disabled:opacity-40 font-bold text-[11px] sm:text-xs">末頁 ≫</button>
+                </div>
+              </div>
+            )}
+
+            {/* 2. Mobile View (左右單筆滑動小卡) */}
             <div className="block md:hidden relative w-full overflow-hidden">
               <div 
                 ref={mobileContainerRef}
                 onScroll={handleMobileScroll}
-                // flex-nowrap 與 snap 鎖定核心，確保橫向不散落、一次剛好滑過一張
                 className="flex flex-row flex-nowrap overflow-x-auto snap-x snap-mandatory scrollbar-none w-full pb-2 touch-pan-x"
                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
               >
                 {paginatedCustomers.length === 0 ? (
-                  <div className="bg-white border border-slate-300 rounded-xl p-12 text-center text-slate-500 font-bold w-full max-w-full snap-start snap-always shrink-0 shadow-2xs min-h-[250px] flex flex-col items-center justify-center">
+                  <div className="bg-white border border-slate-300 rounded-xl p-12 text-center text-slate-500 font-bold w-full max-w-full snap-start snap-always shrink-0 shadow-2xs min-h-[350px] flex flex-col items-center justify-center">
                     <div className="text-2xl mb-2">🔍</div>
                     <div>找不到符合的客戶資料</div>
                   </div>
@@ -595,7 +592,6 @@ export default function CustomerPage() {
                     return (
                       <div 
                         key={customer.id} 
-                        // 🧠 核心資安安全加固：加上 min-h-[380px] 與 h-auto，當手機小鍵盤彈出擠壓可視高度時，卡片絕對堅挺、不會壓扁跑版！
                         className="bg-white border border-slate-300 rounded-xl p-4 shadow-2xs space-y-3 w-full max-w-full snap-start snap-always shrink-0 min-h-[380px] h-auto flex flex-col justify-between"
                       >
                         <div className="space-y-3">
@@ -647,7 +643,7 @@ export default function CustomerPage() {
                 )}
               </div>
 
-              {/* 🧠 手機版智慧圓點分頁指標：範圍綁定在當前 paginatedCustomers (上限10個點)，搜尋一打字自動精確重組 */}
+              {/* 手機版小圓點導引 */}
               {paginatedCustomers.length > 0 && (
                 <div className="flex flex-col items-center justify-center mt-2 select-none">
                   <div className="flex justify-center items-center gap-1.5 flex-wrap max-w-full px-4">
@@ -664,22 +660,6 @@ export default function CustomerPage() {
                 </div>
               )}
             </div>
-
-            {/* 🧠 全功能合一底部分頁列 */}
-            {filteredCustomers.length > 0 && (
-              <div className="bg-white border border-slate-300 rounded-xl px-4 py-3.5 flex flex-col sm:flex-row items-center justify-between text-slate-700 font-mono text-xs select-none gap-3 shadow-2xs mt-4">
-                <div>
-                  顯示第 <span className="font-bold text-slate-900">{startIndex + 1}</span> 至 <span className="font-bold text-slate-900">{Math.min(startIndex + ITEMS_PER_PAGE, filteredCustomers.length)}</span> 筆，共 <span className="font-bold text-slate-900">{filteredCustomers.length}</span> 筆客戶資料
-                </div>
-                <div className="flex items-center gap-1 flex-wrap justify-center">
-                  <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-2 py-1 bg-white border border-slate-300 rounded hover:bg-slate-100 transition-colors disabled:opacity-40 font-bold text-[11px] sm:text-xs">≪ 首頁</button>
-                  <button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1} className="px-2 py-1 bg-white border border-slate-300 rounded hover:bg-slate-100 transition-colors disabled:opacity-40 font-bold text-[11px] sm:text-xs">＜ 上頁</button>
-                  <span className="px-2 sm:px-4 font-bold text-slate-900 text-[11px] sm:text-xs">頁碼 {currentPage} / {totalPages}</span>
-                  <button onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages} className="px-2 py-1 bg-white border border-slate-300 rounded hover:bg-slate-100 transition-colors disabled:opacity-40 font-bold text-[11px] sm:text-xs">下頁 ＞</button>
-                  <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-2 py-1 bg-white border border-slate-300 rounded hover:bg-slate-100 transition-colors disabled:opacity-40 font-bold text-[11px] sm:text-xs">末頁 ≫</button>
-                </div>
-              </div>
-            )}
           </>
         )}
       </div>
@@ -692,7 +672,8 @@ export default function CustomerPage() {
               <h2 className="text-lg font-bold text-slate-900 tracking-wide">{editingCustomerId ? '修改客戶通訊資料' : '新增客戶通訊資料'}</h2>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-700 transition-colors text-xl">✕</button>
             </div>
-            <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-4 max-h-[80vh] overflow-y-auto text-slate-900">
+            {/* 🧠 智慧防跑版核心 B：將 Modal 表單內部所有聯絡電話與輸入框的字體全部統一加固為 text-[16px]，防止新增、編輯打字時版面位移 */}
+            <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-4 max-h-[80vh] overflow-y-auto text-slate-900 text-[16px]">
               
               {!editingCustomerId && (
                 <div className="bg-slate-50 border border-dashed border-slate-400 rounded-xl p-3 md:p-4 space-y-2">
@@ -704,17 +685,17 @@ export default function CustomerPage() {
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="md:col-span-2"><label className="block text-xs font-bold text-slate-600 mb-1">Company *</label><input type="text" name="company_name" required value={formData.company_name} onChange={handleInputChange} placeholder="e.g. TSMC" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 font-bold focus:outline-none text-sm focus:ring-2 focus:ring-blue-600" /></div>
-                <div><label className="block text-xs font-bold text-slate-600 mb-1">Facility</label><input type="text" name="facility_name" value={formData.facility_name || ''} onChange={handleInputChange} placeholder="e.g. 中科廠" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 font-bold focus:outline-none text-sm focus:ring-2 focus:ring-blue-600" /></div>
-                <div><label className="block text-xs font-bold text-slate-600 mb-1">Floor</label><input type="text" name="facility_floor" value={formData.facility_floor || ''} onChange={handleInputChange} placeholder="e.g. 3" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 font-bold focus:outline-none text-sm focus:ring-2 focus:ring-blue-600" /></div>
+                <div className="md:col-span-2"><label className="block text-xs font-bold text-slate-600 mb-1">Company *</label><input type="text" name="company_name" required value={formData.company_name} onChange={handleInputChange} placeholder="e.g. TSMC" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-[16px] focus:ring-2 focus:ring-blue-600" /></div>
+                <div><label className="block text-xs font-bold text-slate-600 mb-1">Facility</label><input type="text" name="facility_name" value={formData.facility_name || ''} onChange={handleInputChange} placeholder="e.g. 中科廠" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-[16px] focus:ring-2 focus:ring-blue-600" /></div>
+                <div><label className="block text-xs font-bold text-slate-600 mb-1">Floor</label><input type="text" name="facility_floor" value={formData.facility_floor || ''} onChange={handleInputChange} placeholder="e.g. 3" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-[16px] focus:ring-2 focus:ring-blue-600" /></div>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div><label className="block text-xs font-bold text-slate-600 mb-1">Contact Name *</label><input type="text" name="contact_name" required value={formData.contact_name} onChange={handleInputChange} placeholder="Name" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-sm focus:ring-2 focus:ring-blue-600" /></div>
-                <div><label className="block text-xs font-bold text-slate-600 mb-1">Title</label><input type="text" name="title" value={formData.title || ''} onChange={handleInputChange} placeholder="Title" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-sm focus:ring-2 focus:ring-blue-600" /></div>
+                <div><label className="block text-xs font-bold text-slate-600 mb-1">Contact Name *</label><input type="text" name="contact_name" required value={formData.contact_name} onChange={handleInputChange} placeholder="Name" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-[16px] focus:ring-2 focus:ring-blue-600" /></div>
+                <div><label className="block text-xs font-bold text-slate-600 mb-1">Title</label><input type="text" name="title" value={formData.title || ''} onChange={handleInputChange} placeholder="Title" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-[16px] focus:ring-2 focus:ring-blue-600" /></div>
                 <div>
                   <label className="block text-xs font-bold text-blue-700 mb-1">現況 *</label>
-                  <select name="status" value={formData.status} onChange={handleInputChange} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold text-sm focus:outline-none focus:ring-2 focus:ring-blue-600">
+                  <select name="status" value={formData.status} onChange={handleInputChange} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold text-[16px] focus:outline-none focus:ring-2 focus:ring-blue-600">
                     <option value="InService">🟢 在職 </option>
                     <option value="Left">🔴 離職 </option>
                   </select>
@@ -724,27 +705,27 @@ export default function CustomerPage() {
               <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <div className="md:col-span-2">
                   <label className="block text-xs font-bold text-blue-700 mb-1">行動電話 (手機)</label>
-                  <input type="text" name="mobile" value={formData.mobile || ''} onChange={handleInputChange} placeholder="e.g. 0912345678" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-blue-700 font-bold tracking-wide focus:outline-none focus:ring-2 focus:ring-blue-600 text-sm" />
+                  <input type="text" name="mobile" value={formData.mobile || ''} onChange={handleInputChange} placeholder="e.g. 0912345678" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-blue-700 font-bold tracking-wide focus:outline-none focus:ring-2 focus:ring-blue-600 text-[16px]" />
                 </div>
                 <div className="md:col-span-1">
                   <label className="block text-xs font-bold text-slate-600 mb-1">公司電話 (總機)</label>
-                  <input type="text" name="phone" value={formData.phone || ''} onChange={handleInputChange} placeholder="033123456" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-sm focus:ring-2 focus:ring-blue-600" />
+                  <input type="text" name="phone" value={formData.phone || ''} onChange={handleInputChange} placeholder="033123456" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-[16px] focus:ring-2 focus:ring-blue-600" />
                 </div>
-                <div><label className="block text-xs font-bold text-slate-600 mb-1">Ext.</label><input type="text" name="extension" value={formData.extension || ''} onChange={handleInputChange} placeholder="Ext" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-sm focus:ring-2 focus:ring-blue-600" /></div>
-                <div><label className="block text-xs font-bold text-slate-600 mb-1">Line ID</label><input type="text" name="line_id" value={formData.line_id || ''} onChange={handleInputChange} placeholder="Line ID" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-sm focus:ring-2 focus:ring-blue-600" /></div>
+                <div><label className="block text-xs font-bold text-slate-600 mb-1">Ext.</label><input type="text" name="extension" value={formData.extension || ''} onChange={handleInputChange} placeholder="Ext" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-[16px] focus:ring-2 focus:ring-blue-600" /></div>
+                <div><label className="block text-xs font-bold text-slate-600 mb-1">Line ID</label><input type="text" name="line_id" value={formData.line_id || ''} onChange={handleInputChange} placeholder="Line ID" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-[16px] focus:ring-2 focus:ring-blue-600" /></div>
               </div>
 
-              <div><label className="block text-xs font-bold text-slate-600 mb-1">Email</label><input type="email" name="email" value={formData.email || ''} onChange={handleInputChange} placeholder="Email" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none text-sm focus:ring-2 focus:ring-blue-600" /></div>
+              <div><label className="block text-xs font-bold text-slate-600 mb-1">Email</label><input type="email" name="email" value={formData.email || ''} onChange={handleInputChange} placeholder="Email" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none text-[16px] focus:ring-2 focus:ring-blue-600" /></div>
               
               <div className="space-y-2">
                 <label className="block text-xs font-bold text-slate-600">Address</label>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div><select value={city} onChange={handleCityChange} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-sm"><option value="">選擇縣市</option>{Object.keys(taiwanDistricts).map((c) => (<option key={c} value={c}>{c}</option>))}</select></div>
-                  <div><select value={dist} disabled={!city} onChange={(e) => setDist(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-sm disabled:opacity-40"><option value="">選擇區域</option>{city && taiwanDistricts[city].map((d) => (<option key={d} value={d}>{d}</option>))}</select></div>
-                  <div className="md:col-span-2"><input type="text" value={detailAddress} onChange={(e) => setDetailAddress(e.target.value)} placeholder="詳細路名..." className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none text-sm" /></div>
+                  <div><select value={city} onChange={handleCityChange} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none text-[16px]"><option value="">選擇縣市</option>{Object.keys(taiwanDistricts).map((c) => (<option key={c} value={c}>{c}</option>))}</select></div>
+                  <div><select value={dist} disabled={!city} onChange={(e) => setDist(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none text-[16px] disabled:opacity-40"><option value="">選擇區域</option>{city && taiwanDistricts[city].map((d) => (<option key={d} value={d}>{d}</option>))}</select></div>
+                  <div className="md:col-span-2"><input type="text" value={detailAddress} onChange={(e) => setDetailAddress(e.target.value)} placeholder="詳細路名..." className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none text-[16px]" /></div>
                 </div>
               </div>
-              <div><label className="block text-xs font-bold text-slate-600 mb-1">Notes</label><textarea name="notes" rows={5} value={formData.notes || ''} onChange={handleInputChange} placeholder="Notes..." className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-medium focus:outline-none resize-none font-mono text-xs leading-relaxed" /></div>
+              <div><label className="block text-xs font-bold text-slate-600 mb-1">Notes</label><textarea name="notes" rows={5} value={formData.notes || ''} onChange={handleInputChange} placeholder="Notes..." className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-medium focus:outline-none resize-none font-mono text-[16px] leading-relaxed" /></div>
               <div className="pt-4 border-t border-slate-200 flex justify-end gap-3 bg-slate-50 px-6 py-3 -mx-6 -mb-6">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-white border border-slate-400 text-slate-800 rounded-lg font-bold text-sm hover:bg-slate-100">取消</button>
                 <button type="submit" disabled={isSubmitting} className="px-5 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm disabled:opacity-50 hover:bg-blue-700 transition-colors shadow-2xs">確認更新</button>
