@@ -106,48 +106,40 @@ export default function CustomerPage() {
   };
 
   // 🧠 智慧整合功能：單筆聯絡人資料轉 VCF (vCard 3.0) 格式並觸發下載
-const exportToVcf = async (customer: any) => {
+const exportToVcf = (customer: any) => {
     try {
       const orgName = customer.company_name || '';
-      const deptName = customer.facility_name ? `${customer.facility_name}${customer.facility_floor ? ` ${customer.facility_floor}F` : ''}` : '';
-      
       const vcardRows = [
         'BEGIN:VCARD', 'VERSION:3.0',
         `FN;CHARSET=UTF-8:${customer.contact_name || ''}`,
-        `ORG;CHARSET=UTF-8:${orgName};${deptName}`,
+        `ORG;CHARSET=UTF-8:${orgName}`,
         `TITLE;CHARSET=UTF-8:${customer.title || ''}`,
         customer.mobile ? `TEL;TYPE=CELL,VOICE:${customer.mobile}` : '',
         customer.phone ? `TEL;TYPE=WORK,VOICE:${customer.phone}${customer.extension ? `,${customer.extension}` : ''}` : '',
         'END:VCARD'
       ].filter(Boolean);
       
-      const vcardString = '\uFEFF' + vcardRows.join('\r\n');
-      const blob = new Blob([vcardString], { type: 'text/vcard' });
-      const file = new File([blob], `${customer.contact_name || '窗口'}.vcf`, { type: 'text/vcard' });
+      const vcardWithBom = '\uFEFF' + vcardRows.join('\r\n');
+      const blob = new Blob([vcardWithBom], { type: 'text/vcard' });
+      const url = URL.createObjectURL(blob);
 
-      // 🧠 核心修正：直接呼叫 iOS 原生分享視窗
-      // 這個做法會強制 iOS 跳出「匯入聯絡人」選項，而不只是預覽
-      if (navigator.share && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: '匯入聯絡人',
-          text: `正在匯入 ${customer.contact_name} 的名片`
-        });
-      } else {
-        // 降級方案：如果是不支援的舊設備，維持原樣下載
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `${customer.contact_name}.vcf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+      // 🧠 關鍵修正：對於 iOS，我們強制讓他先觸發下載，但我們在下載後給予引導
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${customer.contact_name || '窗口'}.vcf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // 給 iOS 使用者的引導訊息
+      if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+        setTimeout(() => {
+          alert('檔案已下載。\n\n請點擊 Safari 地址欄旁的「↓」下載圖示 -> 點選該 VCF 檔案 -> iOS 就會自動彈出「加入聯絡人」的匯入介面！');
+        }, 500);
       }
-    } catch (err: any) { 
-      console.error(err);
-      alert('匯出失敗，請確認手機設定是否允許分享檔案'); 
-    }
+      
+      URL.revokeObjectURL(url);
+    } catch (err: any) { alert('匯出失敗'); }
   };
   const updateAuthState = (session: any) => {
     setIsAdmin(!!session);
