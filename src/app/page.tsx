@@ -697,7 +697,7 @@ export default function CustomerPage() {
                           {!isLeft && customer.phone ? <a href={`tel:${customer.phone}`} className="bg-zinc-600 hover:bg-zinc-700 text-white text-center py-2 rounded-lg transition-colors shadow-2xs flex items-center justify-center gap-1"><span>☎ 總機分機</span></a> : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">☎ 無總機</div>}
                         </div>
                         <div className="grid grid-cols-3 gap-1.5">
-                          {!isLeft && customer.line_id ? <button onClick={() => setActiveLineId(customer.line_id)} className="bg-emerald-600 hover:bg-emerald-700 text-white text-center py-2 rounded-lg transition-colors shadow-2xs flex items-center justify-center gap-1"><span>LINE</span></button> : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無 LINE</div>}
+                          {!isLeft && customer.line_id ? <button onClick={() => setActiveLineId(customer.line_id)} className="bg-emerald-600 hover:bg-emerald-700 text-white text-center py-2 rounded-lg transition-colors shadow-2xs flex items-center justify-center gap-1"><span>🔰 LINE</span></button> : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無 LINE</div>}
                           {customer.address ? (
                             <a href={`http://maps.google.com/?q=${encodeURIComponent(customer.address.split(/[\s\(\環境]/)[0])}`} target="_blank" rel="noopener noreferrer" className="bg-cyan-600 hover:bg-cyan-700 text-white text-center py-2 rounded-lg transition-colors shadow-2xs flex items-center justify-center gap-1"><span>🚃 導航</span></a>
                           ) : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">🚃 無地址</div>}
@@ -706,7 +706,7 @@ export default function CustomerPage() {
                             onClick={() => exportToVcf(customer)}
                             className="bg-yellow-600 hover:bg-yellow-700 text-white text-center py-2 rounded-lg transition-colors shadow-2xs flex items-center justify-center gap-1"
                           >
-                            📇 名片
+                            🪪 名片
                           </button>
                         </div>
                       </div>
