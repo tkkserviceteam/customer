@@ -693,18 +693,18 @@ export default function CustomerPage() {
                       {/* 🧠 手機端工具按鈕重組：重構為更實用的網格排版，強勢加入「📇 名片」匯出按鈕，防指尖誤觸 */}
                       <div className="space-y-1.5 pt-2 border-t border-slate-100 font-mono text-[11px] font-bold">
                         <div className="grid grid-cols-2 gap-1.5">
-                          {!isLeft && customer.mobile ? <a href={`tel:${customer.mobile}`} className="bg-blue-600 hover:bg-blue-700 text-white text-center py-2 rounded-lg transition-colors shadow-2xs flex items-center justify-center gap-1"><span>撥打手機</span></a> : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無手機</div>}
-                          {!isLeft && customer.phone ? <a href={`tel:${customer.phone}`} className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-center py-2 rounded-lg shadow-2xs flex items-center justify-center gap-1"><span>總機分機</span></a> : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無總機</div>}
+                          {!isLeft && customer.mobile ? <a href={`tel:${customer.mobile}`} className="bg-blue-600 hover:bg-blue-700 text-white text-center py-2 rounded-lg transition-colors shadow-2xs flex items-center justify-center gap-1"><span>📞 撥打手機</span></a> : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">📞 無手機</div>}
+                          {!isLeft && customer.phone ? <a href={`tel:${customer.phone}`} className="bg-zinc-600 hover:bg-zinc-700 text-white text-center py-2 rounded-lg transition-colors shadow-2xs flex items-center justify-center gap-1"><span>☎ 總機分機</span></a> : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">☎ 無總機</div>}
                         </div>
                         <div className="grid grid-cols-3 gap-1.5">
-                          {!isLeft && customer.line_id ? <button onClick={() => setActiveLineId(customer.line_id)} className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-center py-2 rounded-lg shadow-2xs"><span>LINE</span></button> : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無 LINE</div>}
+                          {!isLeft && customer.line_id ? <button onClick={() => setActiveLineId(customer.line_id)} className="bg-emerald-600 hover:bg-emerald-700 text-white text-center py-2 rounded-lg transition-colors shadow-2xs flex items-center justify-center gap-1"><span>LINE</span></button> : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無 LINE</div>}
                           {customer.address ? (
-                            <a href={`http://maps.google.com/?q=${encodeURIComponent(customer.address.split(/[\s\(\環境]/)[0])}`} target="_blank" rel="noopener noreferrer" className="bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-300 text-slate-200 rounded-lg shadow-2xs text-center py-2"><span>導航</span></a>
-                          ) : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無地址</div>}
+                            <a href={`http://maps.google.com/?q=${encodeURIComponent(customer.address.split(/[\s\(\環境]/)[0])}`} target="_blank" rel="noopener noreferrer" className="bg-cyan-600 hover:bg-cyan-700 text-white text-center py-2 rounded-lg transition-colors shadow-2xs flex items-center justify-center gap-1"><span>🚃 導航</span></a>
+                          ) : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">🚃 無地址</div>}
                           {/* 下載 VCF 電子名片 */}
                           <button 
                             onClick={() => exportToVcf(customer)}
-                            className="bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-300 text-center py-2 rounded-lg shadow-2xs font-bold"
+                            className="bg-yellow-600 hover:bg-yellow-700 text-white text-center py-2 rounded-lg transition-colors shadow-2xs flex items-center justify-center gap-1"
                           >
                             📇 名片
                           </button>
