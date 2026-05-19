@@ -797,7 +797,6 @@ export default function CustomerPage() {
             className="px-4 h-10 bg-white hover:bg-slate-100 text-slate-900 border border-slate-400 rounded-full flex items-center gap-2 shadow-md transition-all hover:scale-102 active:scale-98 text-xs font-bold select-none group relative tracking-wider"
           >
             <span>📊</span>
-            <span>最近變更紀錄</span>
             {logs.length > 0 && (
               <span className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-pulse"></span>
             )}
