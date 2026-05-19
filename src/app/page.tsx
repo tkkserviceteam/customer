@@ -109,29 +109,36 @@ export default function CustomerPage() {
 const exportToVcf = (customer: any) => {
     try {
       const orgName = customer.company_name || '';
-      const deptName = customer.facility_name ? `${customer.facility_name}${customer.facility_floor ? ` ${customer.facility_floor}F` : ''}` : '';
-      
       const vcardRows = [
         'BEGIN:VCARD', 'VERSION:3.0',
         `FN;CHARSET=UTF-8:${customer.contact_name || ''}`,
-        `ORG;CHARSET=UTF-8:${orgName};${deptName}`,
+        `ORG;CHARSET=UTF-8:${orgName}`,
         `TITLE;CHARSET=UTF-8:${customer.title || ''}`,
         customer.mobile ? `TEL;TYPE=CELL,VOICE:${customer.mobile}` : '',
         customer.phone ? `TEL;TYPE=WORK,VOICE:${customer.phone}${customer.extension ? `,${customer.extension}` : ''}` : '',
         'END:VCARD'
       ].filter(Boolean);
       
-      const vcardWithBom = '\uFEFF' + vcardRows.join('\r\n');
-      const base64Vcard = btoa(unescape(encodeURIComponent(vcardWithBom)));
+      const vcardString = '\uFEFF' + vcardRows.join('\r\n');
+      const base64Vcard = btoa(unescape(encodeURIComponent(vcardString)));
+      const dataUri = `data:text/vcard;base64,${base64Vcard}`;
+
+      // 🧠 關鍵修正：iOS 無法在隱藏元素上點擊，改用 window.open 強制轉導
+      // 這是目前 iOS Safari 避開「無法下載此檔」錯誤最穩定的解法
+      const win = window.open(dataUri, '_blank');
       
-      const link = document.createElement('a');
-      link.href = `data:text/vcard;base64,${base64Vcard}`;
-      link.download = `${customer.contact_name || '窗口'}.vcf`;
-      link.setAttribute('target', '_blank');
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (err: any) { alert('匯出名片失敗'); }
+      if (!win) {
+        // 如果被擋了，嘗試作為降級方案
+        const link = document.createElement('a');
+        link.href = dataUri;
+        link.download = `${customer.contact_name || '窗口'}.vcf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    } catch (err: any) { 
+      alert('匯出名片失敗，請檢查權限'); 
+    }
   };
 
   const updateAuthState = (session: any) => {
