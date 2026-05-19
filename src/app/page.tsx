@@ -458,37 +458,63 @@ const exportToVcf = (customer: any) => {
 
       <div className="max-w-7xl mx-auto">
         
-        {/* Top Title Bar */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8 border-b border-slate-200 pb-6">
-          <div>
-            <h1 className="text-xl md:text-2xl font-bold tracking-wide text-black">客戶通訊錄管理系統</h1>
-            <div className="text-xs md:text-sm mt-1 flex flex-wrap items-center gap-2">
-              {isAdmin ? (
-                <>
-                  <span className="text-blue-700 font-bold font-mono">🟢 歡迎管理員 [{operatorName}] 登入模式 (10分閒置安全防護中)</span>
-                  <button 
-                    onClick={() => setIsPwdModalOpen(true)}
-                    className="text-[11px] bg-white text-amber-700 border border-slate-400 px-2 py-0.5 rounded hover:bg-slate-100 transition-colors font-mono font-semibold shadow-2xs"
-                  >
-                    🔐 修改密碼
-                  </button>
-                </>
-              ) : (
-                <span className="text-slate-600 font-medium">🔵 訪客唯讀模式</span>
-              )}
-            </div>
-          </div>
-          <div className="flex gap-2 md:gap-3">
-            {isAdmin ? (
-              <>
-                <button onClick={handleOpenCreateModal} className="flex-1 md:flex-initial bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-sm md:text-base rounded-lg font-bold shadow transition-colors tracking-wide">+ 新增客戶</button>
-                <button onClick={handleLogout} className="flex-1 md:flex-initial bg-white border border-slate-400 text-slate-700 hover:bg-slate-100 px-4 py-2 text-sm md:text-base rounded-lg font-bold shadow transition-colors">安全登出</button>
-              </>
-            ) : (
-              <button onClick={() => router.push('/login')} className="w-full md:w-auto bg-white hover:bg-slate-100 text-slate-800 border border-slate-400 px-4 py-2 text-sm md:text-base rounded-lg font-bold shadow transition-colors">管理員登入</button>
-            )}
-          </div>
-        </div>
+{/* Top Title Bar */}
+<div className="flex items-start justify-between md:flex-row md:items-center gap-4 mb-8 border-b border-slate-200 pb-6">
+  
+  <div className="flex-1 min-w-0">
+    <h1 className="text-x0 md:text-2xl font-bold tracking-wide text-black">
+      客戶通訊錄管理系統
+    </h1>
+
+    <div className="text-xs md:text-sm mt-1 flex flex-wrap items-center gap-2">
+      {isAdmin ? (
+        <>
+          <span className="text-blue-700 font-bold font-mono">
+            🟢 歡迎管理員 [{operatorName}] 登入 
+          </span>
+		<span className="text-blue-700 font-bold font-mono">(10分閒置安全防護中)</span>
+          <button 
+            onClick={() => setIsPwdModalOpen(true)}
+            className="text-[11px] bg-white text-amber-700 border border-slate-400 px-2 py-0.5 rounded hover:bg-slate-100 transition-colors font-mono font-semibold shadow-2xs"
+          >
+            🔐 修改密碼
+          </button>
+        </>
+      ) : (
+        <span className="text-slate-600 font-medium">
+          🔵 訪客唯讀模式
+        </span>
+      )}
+    </div>
+  </div>
+
+  <div className="flex gap-2 md:gap-3 shrink-0">
+    {isAdmin ? (
+      <>
+        <button
+          onClick={handleOpenCreateModal}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-sm md:text-base rounded-lg font-bold shadow transition-colors tracking-wide"
+        >
+          + 新增客戶
+        </button>
+
+        <button
+          onClick={handleLogout}
+          className="bg-white border border-slate-400 text-slate-700 hover:bg-slate-100 px-4 py-2 text-sm md:text-base rounded-lg font-bold shadow transition-colors"
+        >
+          安全登出
+        </button>
+      </>
+    ) : (
+      <button
+        onClick={() => router.push('/login')}
+        className="bg-white hover:bg-slate-100 text-slate-800 border border-slate-400 px-4 py-2 text-sm md:text-base rounded-lg font-bold shadow transition-colors whitespace-nowrap"
+      >
+        管理員登入
+      </button>
+    )}
+  </div>
+</div>
 
         {/* 工具列區塊 */}
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
