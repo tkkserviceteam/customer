@@ -106,7 +106,7 @@ export default function CustomerPage() {
   };
 
   // 🧠 智慧整合功能：單筆聯絡人資料轉 VCF (vCard 3.0) 格式並觸發下載
-const exportToVcf = (customer: any) => {
+const exportToVcf = async (customer: any) => {
     try {
       const orgName = customer.company_name || '';
       const deptName = customer.facility_name ? `${customer.facility_name}${customer.facility_floor ? ` ${customer.facility_floor}F` : ''}` : '';
@@ -122,28 +122,30 @@ const exportToVcf = (customer: any) => {
       ].filter(Boolean);
       
       const vcardString = '\uFEFF' + vcardRows.join('\r\n');
-      
-      // 🧠 關鍵修正：將 UTF-8 編碼後的內容放入 Blob，並標記類型
-      const blob = new Blob([vcardString], { type: 'text/vcard;charset=utf-8' });
-      
-      // 🧠 關鍵修正：使用 navigator.msSaveOrOpenBlob (給 Windows) 或 URL.createObjectURL (給 iOS/Android)
-      const url = URL.createObjectURL(blob);
-      
-      const link = document.createElement('a');
-      link.href = url;
-      // 告訴 iOS 這是一個 vCard 檔案，強制觸發匯入
-      link.download = `${customer.contact_name || '窗口'}.vcf`;
-      
-      // 執行下載觸發
-      document.body.appendChild(link);
-      link.click();
-      
-      // 清理資源
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      
+      const blob = new Blob([vcardString], { type: 'text/vcard' });
+      const file = new File([blob], `${customer.contact_name || '窗口'}.vcf`, { type: 'text/vcard' });
+
+      // 🧠 核心技術：使用 navigator.share 觸發 iOS 原生分享視窗
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: '聯絡人名片',
+          text: `匯出 ${customer.contact_name} 的聯絡資訊`
+        });
+      } else {
+        // 如果瀏覽器不支援 Web Share API (例如舊版)，才退回原本的 link.click()
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${customer.contact_name || '窗口'}.vcf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
     } catch (err: any) { 
-      alert('匯出名片失敗，請嘗試使用電腦版匯出'); 
+      console.error(err);
+      alert('分享失敗，請確認瀏覽器支援分享功能'); 
     }
   };
 
