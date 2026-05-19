@@ -23,7 +23,7 @@ interface ExtendedInsertInput extends InsertCustomerInput {
 export default function CustomerPage() {
   const router = useRouter();
   
-  // --- 1. 所有狀態（State）統一集中在最上方宣告 ---
+  // --- 1. 核心狀態宣告 ---
   const [customers, setCustomers] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
@@ -37,6 +37,8 @@ export default function CustomerPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null);
   const [activeLineId, setActiveLineId] = useState<string | null>(null);
+  
+  // 供電腦版表格使用的折疊展開狀態
   const [expandedCustomerIds, setExpandedCustomerIds] = useState<Record<string, boolean>>({});
 
   const [isPwdModalOpen, setIsPwdModalOpen] = useState(false);
@@ -47,9 +49,11 @@ export default function CustomerPage() {
   const [isLogPanelOpen, setIsLogPanelOpen] = useState(false);
   const logPanelRef = useRef<HTMLDivElement>(null);
 
+  // 🧠 核心升級 B：依需求將單頁顯示筆數精準限制為「5 筆」，電腦表格與手機卡片同步連動
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 5;
 
+  // 手機版滑動控制 Ref 與 Index 紀錄
   const [currentMobileIndex, setCurrentMobileIndex] = useState(0);
   const mobileContainerRef = useRef<HTMLDivElement>(null);
 
@@ -67,7 +71,7 @@ export default function CustomerPage() {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const IDLE_TIMEOUT_DURATION = 10 * 60 * 1000;
 
-  // --- 2. 函式宣告提升處理 ---
+  // --- 2. 函式宣告提升 ---
   const fetchCustomers = async () => {
     try {
       setLoading(true);
@@ -153,11 +157,15 @@ export default function CustomerPage() {
     };
   }, [isAdmin]);
 
+  // 🧠 智慧聯動：當切換分頁、搜尋字串或勾選離職狀態變更時，手機滾動軸自動秒速平滑歸零
   useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, showArchived]);
+    setCurrentMobileIndex(0);
+    if (mobileContainerRef.current) {
+      mobileContainerRef.current.scrollTo({ left: 0 });
+    }
+  }, [searchTerm, showArchived, currentPage]);
 
-  // --- 4. 業務處理方法 ---
+  // --- 4. 格式化與輔助方法 ---
   const formatMobileDisplay = (num: string) => {
     if (!num) return '--';
     const clean = num.replace(/\D/g, '');
@@ -371,7 +379,7 @@ export default function CustomerPage() {
     }
   };
 
-  // --- 5. 核心過濾與範圍切片 ---
+  // --- 5. 資料處理與過濾計算（🧠 預設無條件全部顯示！） ---
   const filteredCustomers = customers.filter((customer) => {
     const search = searchTerm.toLowerCase();
     const matchesSearch = (
@@ -388,6 +396,7 @@ export default function CustomerPage() {
     return matchesSearch;
   });
 
+  // 🧠 核心變更 C：限制每頁上限改為 5 筆，對齊你的工控查詢分頁習慣
   const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE) || 1;
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const paginatedCustomers = filteredCustomers.slice(startIndex, startIndex + ITEMS_PER_PAGE);
@@ -456,7 +465,7 @@ export default function CustomerPage() {
 
         {/* 資料呈現區區塊 */}
         <div className="w-full">
-          {/* 1. Desktop View */}
+          {/* 1. Desktop View (電腦版表格：每頁限制顯示 5 筆) */}
           <div className="hidden md:block bg-white border border-slate-300 rounded-xl overflow-hidden shadow-sm">
             {filteredCustomers.length === 0 ? (
               <div className="text-center py-12 text-slate-500 font-bold">找不到客戶資料</div>
@@ -509,7 +518,7 @@ export default function CustomerPage() {
                             <td className="p-4 text-center space-x-2 whitespace-nowrap text-xs font-bold">
                               <button onClick={() => handleOpenEditModal(customer)} className="text-amber-700 hover:text-amber-600 transition-colors">編輯</button>
                               <span className="text-slate-300">|</span>
-                              <button onClick={() => handleDeleteCustomer(customer.id, customer.contact_name, customer.company_name)} className="text-red-600 hover:text-red-400 transition-colors">刪除</button>
+                              <button onClick={() => handleDeleteCustomer(customer.id, customer.contact_name, customer.company_name)} className="text-red-600 hover:text-red-500 transition-colors">刪除</button>
                             </td>
                           )}
                         </tr>
@@ -543,11 +552,11 @@ export default function CustomerPage() {
             )}
           </div>
 
-          {/* 2. Mobile View */}
-          {/* 🧠 🧠 這裡就是修復第 538 行 Build Error 的核心：拔除了多餘殘留的 </封閉標籤> */}
+          {/* 2. Mobile View (🧠 🧠 完美對齊意圖：預設直接顯示全部通訊錄資料，一次顯示單一滿版卡片，可直接流暢滑動瀏覽這 5 筆) */}
           <div className="block md:hidden relative w-full overflow-hidden">
             <div 
               ref={mobileContainerRef}
+              onScroll={handleMobileScroll}
               className="flex flex-row flex-nowrap overflow-x-auto snap-x snap-mandatory scrollbar-none w-full pb-2 touch-pan-x"
               style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             >
@@ -591,6 +600,7 @@ export default function CustomerPage() {
                           {customer.phone && <div><span className="text-slate-700">總機：</span>{formatPhoneDisplay(customer.phone)}{customer.extension ? ` #${customer.extension}` : ''}</div>}
                         </div>
 
+                        {/* 🧠 手機端直接全量平鋪詳細資訊，免去手風琴下拉 */}
                         <div className="pt-2 border-t border-slate-150 space-y-2 text-xs font-semibold">
                           <div>
                             <span className="text-slate-400 block mb-0.5 font-mono">Email：</span>
@@ -621,7 +631,7 @@ export default function CustomerPage() {
               )}
             </div>
 
-            {/* 手機版分頁指示點 */}
+            {/* 手機版 5 筆資料專用指示點（與分頁批次同步，100% 精準） */}
             {!loading && paginatedCustomers.length > 0 && (
               <div className="flex flex-col items-center justify-center mt-2 select-none">
                 <div className="flex justify-center items-center gap-1.5 flex-wrap max-w-full px-4">
@@ -633,14 +643,14 @@ export default function CustomerPage() {
                   ))}
                 </div>
                 <div className="text-center text-[10px] text-slate-500 font-mono font-bold mt-1">
-                  ◀ 左右滑動切換聯絡人 (目前: {currentMobileIndex + 1} / {paginatedCustomers.length}) ▶
+                  ◀ 左右滑動瀏覽本頁資料 (目前: {currentMobileIndex + 1} / {paginatedCustomers.length}) ▶
                 </div>
               </div>
             )}
           </div>
-        </div>
+        )}
 
-        {/* 全功能合一底部分頁列 */}
+        {/* 🧠 🧠 跨平台共用導航分頁列（每頁 5 筆，預設無條件列出全部，點擊即可切換下一批 5 筆） */}
         {!loading && filteredCustomers.length > 0 && (
           <div className="bg-white border border-slate-300 rounded-xl px-4 py-3.5 flex flex-col sm:flex-row items-center justify-between text-slate-700 font-mono text-xs select-none gap-3 shadow-2xs mt-4">
             <div>
@@ -662,7 +672,7 @@ export default function CustomerPage() {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
           <div className="w-full max-w-2xl bg-white border border-slate-300 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 text-black font-semibold">
-            <div className="px-6 py-4 border-b border-slate-300 flex items-center justify-between bg-slate-100">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-100">
               <h2 className="text-lg font-bold text-slate-900 tracking-wide">{editingCustomerId ? '修改客戶通訊資料' : '新增客戶通訊資料'}</h2>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-700 transition-colors text-xl">✕</button>
             </div>
@@ -785,6 +795,34 @@ export default function CustomerPage() {
           </button>
         )}
       </div>
+
+      {/* 修改密碼彈出視窗 */}
+      {isPwdModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
+          <div className="w-full max-w-sm bg-white border border-slate-300 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 text-black font-bold">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-100">
+              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5 tracking-wider">
+                <span>🔐 修改管理員密碼</span>
+              </h2>
+              <button onClick={() => { setIsPwdModalOpen(false); setNewPassword(''); setConfirmPassword(''); }} className="text-gray-400 hover:text-slate-700 transition-colors text-sm">✕</button>
+            </div>
+            <form onSubmit={handleUpdatePassword} className="p-5 space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-400 mb-2">輸入新密碼 (至少 6 位數)</label>
+                <input type="password" required autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="請輸入全新安全密碼" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-black text-sm focus:outline-none focus:ring-2 focus:ring-blue-600" />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-400 mb-2">再次確認新密碼</label>
+                <input type="password" required autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="請再次輸入新密碼" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-black text-sm focus:outline-none focus:ring-2 focus:ring-blue-600" />
+              </div>
+              <div className="pt-2 flex justify-end gap-2 bg-slate-50 p-3 -mx-5 -mb-5 border-t border-slate-200">
+                <button type="button" onClick={() => { setIsPwdModalOpen(false); setNewPassword(''); setConfirmPassword(''); }} className="px-4 py-2 bg-white border border-slate-400 text-slate-700 rounded-md font-bold">CANCEL</button>
+                <button type="submit" disabled={pwdUpdating} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-bold shadow transition-colors disabled:opacity-50">{pwdUpdating ? '同步更新中...' : '確認重設密碼'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );
