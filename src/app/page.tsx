@@ -176,6 +176,14 @@ const exportToVcf = (customer: any) => {
     alert('匯出失敗');
   }
 };
+  const updateAuthState = (session: any) => {
+    setIsAdmin(!!session);
+    if (session?.user?.email) {
+      setOperatorName(session.user.email.split('@')[0]);
+    } else {
+      setOperatorName('');
+    }
+  };
 
   const handleAutoLogout = async () => {
     await supabase.auth.signOut();
