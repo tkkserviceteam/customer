@@ -71,7 +71,7 @@ export default function CustomerPage() {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const IDLE_TIMEOUT_DURATION = 10 * 60 * 1000;
 
-  // --- 2. 函式宣告提升處理 ---
+  // --- 2. 函式宣告提升處理（含大括號防禦） ---
   const fetchCustomers = async () => {
     try {
       setLoading(true);
@@ -129,6 +129,12 @@ export default function CustomerPage() {
     router.refresh();
   };
 
+  // 🧠 核心補回與位置校正：將被擠壓的輸入框監聽器挪移到全局最頂層，順利解除 TypeScript 編譯阻斷！
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
   // --- 3. 副作用處理 ---
   useEffect(() => {
     const checkAuthAndFetch = async () => {
@@ -157,13 +163,9 @@ export default function CustomerPage() {
     };
   }, [isAdmin]);
 
-  // 當切換分頁、搜尋字串或篩選條件變更時，手機滾動軸自動重置復位
   useEffect(() => {
-    setCurrentMobileIndex(0);
-    if (mobileContainerRef.current) {
-      mobileContainerRef.current.scrollTo({ left: 0 });
-    }
-  }, [searchTerm, showArchived, currentPage]);
+    setCurrentPage(1);
+  }, [searchTerm, showArchived]);
 
   // --- 4. 格式化與輔助方法 ---
   const formatMobileDisplay = (num: string) => {
@@ -341,33 +343,19 @@ export default function CustomerPage() {
     }
   };
 
-  const handleUpdatePassword = async (newE: React.FormEvent) => {
-    newE.preventDefault();
-    if (newPassword.length < 6) {
-      alert('資安防護提示：新密碼長度不可少於 6 位數。');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      alert('密碼變更失敗：兩次輸入的新密碼不一致，請重新檢查。');
-      return;
-    }
-
-    try {
-      setPwdUpdating(true);
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) throw error;
-      alert(`密碼變更成功！新密碼已即刻生效。`);
-      setIsPwdModalOpen(false);
-      setNewPassword('');
-      setConfirmPassword('');
-    } catch (error: any) {
-      alert(`密碼變更失敗：${error.message}`);
-    } finally {
-      setPwdUpdating(false);
+  const handleMobileScroll = () => {
+    if (mobileContainerRef.current) {
+      const { scrollLeft, clientWidth } = mobileContainerRef.current;
+      if (clientWidth > 0) {
+        const index = Math.round(scrollLeft / clientWidth);
+        if (index !== currentMobileIndex) {
+          setCurrentMobileIndex(index);
+        }
+      }
     }
   };
 
-  // --- 5. 過濾與範圍切片計算 ---
+  // --- 5. 過濾與分頁計算 ---
   const filteredCustomers = customers.filter((customer) => {
     const search = searchTerm.toLowerCase();
     const matchesSearch = (
@@ -540,10 +528,10 @@ export default function CustomerPage() {
           </div>
 
           {/* 2. Mobile View */}
-          {/* 🧠 🧠 這裡就是修復 651 行編譯報錯的核心：徹底移除殘留多餘的結尾大括號與外層標籤配對，維持清爽 */}
           <div className="block md:hidden relative w-full overflow-hidden">
             <div 
               ref={mobileContainerRef}
+              onScroll={handleMobileScroll}
               className="flex flex-row flex-nowrap overflow-x-auto snap-x snap-mandatory scrollbar-none w-full pb-2 touch-pan-x"
               style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             >
@@ -636,7 +624,7 @@ export default function CustomerPage() {
           </div>
         </div>
 
-        {/* 🧠 跨平台共用導航分頁列（每頁 5 筆） */}
+        {/* 跨平台共用導航分頁列（每頁 5 筆） */}
         {!loading && filteredCustomers.length > 0 && (
           <div className="bg-white border border-slate-300 rounded-xl px-4 py-3.5 flex flex-col sm:flex-row items-center justify-between text-slate-700 font-mono text-xs select-none gap-3 shadow-2xs mt-4">
             <div>
@@ -662,6 +650,7 @@ export default function CustomerPage() {
               <h2 className="text-lg font-bold text-slate-900 tracking-wide">{editingCustomerId ? '修改客戶通訊資料' : '新增客戶通訊資料'}</h2>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-700 transition-colors text-xl">✕</button>
             </div>
+            {/* 🧠 確保對應呼叫無誤 */}
             <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-4 max-h-[80vh] overflow-y-auto text-slate-900 text-[16px]">
               
               {!editingCustomerId && (
@@ -709,9 +698,9 @@ export default function CustomerPage() {
               <div className="space-y-2">
                 <label className="block text-xs font-bold text-slate-600">Address</label>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div><select value={city} onChange={handleCityChange} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none text-[16px]"><option value="">選擇縣市</option>{Object.keys(taiwanDistricts).map((c) => (<option key={c} value={c}>{c}</option>))}</select></div>
-                  <div><select value={dist} disabled={!city} onChange={(e) => setDist(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none text-[16px] disabled:opacity-40"><option value="">選擇區域</option>{city && taiwanDistricts[city].map((d) => (<option key={d} value={d}>{d}</option>))}</select></div>
-                  <div className="md:col-span-2"><input type="text" value={detailAddress} onChange={(e) => setDetailAddress(e.target.value)} placeholder="詳細路名..." className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none text-[16px]" /></div>
+                  <div><select value={city} onChange={handleCityChange} className="w-full px-3 py-2 bg-white border border-slate-800 focus:outline-none text-[16px]"><option value="">選擇縣市</option>{Object.keys(taiwanDistricts).map((c) => (<option key={c} value={c}>{c}</option>))}</select></div>
+                  <div><select value={dist} disabled={!city} onChange={(e) => setDist(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-800 focus:outline-none text-[16px] disabled:opacity-40"><option value="">選擇區域</option>{city && taiwanDistricts[city].map((d) => (<option key={d} value={d}>{d}</option>))}</select></div>
+                  <div><input type="text" value={detailAddress} onChange={(e) => setDetailAddress(e.target.value)} placeholder="詳細路名..." className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none text-[16px]" /></div>
                 </div>
               </div>
               <div><label className="block text-xs font-bold text-slate-600 mb-1">Notes</label><textarea name="notes" rows={5} value={formData.notes || ''} onChange={handleInputChange} placeholder="Notes..." className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-medium focus:outline-none resize-none font-mono text-[16px] leading-relaxed" /></div>
