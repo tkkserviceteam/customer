@@ -309,29 +309,6 @@ export default function CustomerPage() {
     setIsModalOpen(true);
   };
 
-  const writeLog = async (actionType: string, customerName: string, details: string) => {
-    try {
-      const { error } = await supabase.from('customer_logs').insert([{ operator: operatorName || '訪客', action_type: actionType, customer_name: customerName, details: details }]);
-      if (error) throw error;
-      await fetchLogs();
-    } catch (error: any) {
-      alert(`日誌寫入失敗: ${error.message}`);
-    }
-  };
-
-  const handleDeleteCustomer = async (id: string, name: string, company: string) => {
-    if (!confirm(`確定要將客戶「${name}」的通訊資料徹底從資料庫中刪除嗎？`)) return;
-    try {
-      const { error } = await supabase.from('customers').delete().eq('id', id);
-      if (error) throw error;
-      alert('資料已成功刪除！');
-      await writeLog('刪除', company, `移成了聯絡窗口: ${name}`);
-      await fetchCustomers();
-    } catch (error) {
-      alert('刪除失敗，權限被拒絕。');
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -469,7 +446,7 @@ export default function CustomerPage() {
 
         {/* 資料呈現區區塊 */}
         <div className="w-full">
-          {/* 1. Desktop View (電腦表格：維持每頁 5 筆進行乾淨切換) */}
+          {/* 1. Desktop View */}
           <div className="hidden md:block bg-white border border-slate-300 rounded-xl overflow-hidden shadow-sm">
             {filteredCustomers.length === 0 ? (
               <div className="text-center py-12 text-slate-500 font-bold">找不到客戶資料</div>
@@ -556,7 +533,7 @@ export default function CustomerPage() {
             )}
           </div>
 
-          {/* 2. Mobile View (🧠 🧠 終極核心升級：直接渲染 filteredCustomers 全量數據！一進來即可左右滑動看完全部) */}
+          {/* 2. Mobile View */}
           <div className="block md:hidden relative w-full overflow-hidden">
             <div 
               ref={mobileContainerRef}
@@ -586,10 +563,11 @@ export default function CustomerPage() {
                             </div>
                             <div className="text-xs text-slate-600 font-bold mt-1 ml-0.5">{customer.facility_name || '無特定廠區'} {customer.facility_floor ? ` • ${customer.facility_floor}F` : ''}</div>
                           </div>
+                          {/* 🧠 🧠 最終修正：在手機卡片刪除方法前精確補回物件前綴，變更為 customer.company_name 排除未定義錯誤 */}
                           {isAdmin && (
-                            <div className="flex gap-1.5 text-xs shrink-0">
+                            <div className="flex gap-1.5 text-xs shrink-0" onClick={(e) => e.stopPropagation()}>
                               <button onClick={() => handleOpenEditModal(customer)} className="text-amber-800 font-bold bg-amber-50 px-2 py-1 rounded border border-amber-300">編輯</button>
-                              <button onClick={() => handleDeleteCustomer(customer.id, customer.contact_name, company_name)} className="text-red-600 font-bold bg-red-50 px-2 py-1 rounded border border-red-200">刪除</button>
+                              <button onClick={() => handleDeleteCustomer(customer.id, customer.contact_name, customer.company_name)} className="text-red-600 font-bold bg-red-50 px-2 py-1 rounded border border-red-200">刪除</button>
                             </div>
                           )}
                         </div>
@@ -634,7 +612,7 @@ export default function CustomerPage() {
               )}
             </div>
 
-            {/* 手機版全量小圓點指標（綁定 filteredCustomers.length） */}
+            {/* 手機版小圓點導引 */}
             {!loading && filteredCustomers.length > 0 && (
               <div className="flex flex-col items-center justify-center mt-2 select-none">
                 <div className="flex justify-center items-center gap-1.5 flex-wrap max-w-full px-4">
@@ -653,7 +631,7 @@ export default function CustomerPage() {
           </div>
         </div>
 
-        {/* 🧠 🧠 跨平台共用導航分頁列：加上 hidden md:flex！使其只出現在電腦端，手機版 100% 物理隱藏，達到零干擾 */}
+        {/* 跨平台共用導航分頁列 */}
         {!loading && filteredCustomers.length > 0 && (
           <div className="hidden md:flex bg-white border border-slate-300 rounded-xl px-4 py-3.5 items-center justify-between text-slate-700 font-mono text-xs select-none gap-3 shadow-2xs mt-4">
             <div>
