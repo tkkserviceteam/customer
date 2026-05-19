@@ -71,7 +71,7 @@ export default function CustomerPage() {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const IDLE_TIMEOUT_DURATION = 10 * 60 * 1000;
 
-  // --- 2. 函式宣告提升與 Scope 優化（確保 writeLog 與 fetch 隨叫隨到） ---
+  // --- 2. 核心底層資料處理與日誌函式 ---
   const fetchCustomers = async () => {
     try {
       setLoading(true);
@@ -170,7 +170,7 @@ export default function CustomerPage() {
     }
   };
 
-  // --- 3. 副作用處理 ---
+  // --- 3. 生命週期與狀態聯動副效應 ---
   useEffect(() => {
     const checkAuthAndFetch = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -198,7 +198,6 @@ export default function CustomerPage() {
     };
   }, [isAdmin]);
 
-  // 當輸入搜尋關鍵字或篩選條件變更時，自動將手機滾動軸重置復位至第 1 筆
   useEffect(() => {
     setCurrentMobileIndex(0);
     if (mobileContainerRef.current) {
@@ -206,7 +205,7 @@ export default function CustomerPage() {
     }
   }, [searchTerm, showArchived]);
 
-  // --- 4. 格式化與業務處理方法 ---
+  // --- 4. 通用規格格式化輔助函數 ---
   const formatMobileDisplay = (num: string) => {
     if (!num) return '--';
     const clean = num.replace(/\D/g, '');
@@ -384,7 +383,7 @@ export default function CustomerPage() {
     }
   };
 
-  // --- 5. 過濾與分頁計算 ---
+  // --- 5. 全量資料過濾與分頁計算區 ---
   const filteredCustomers = customers.filter((customer) => {
     const search = searchTerm.toLowerCase();
     const matchesSearch = (
@@ -415,6 +414,12 @@ export default function CustomerPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 p-4 md:p-12 pb-32 overflow-x-hidden font-sans select-none" suppressHydrationWarning={true}>
+      
+      {/* 🧠 🧠 真・終極加固核心：動態插入 Viewport 縮放阻斷 Meta 標籤，物理性抹除 iOS 後台與輸入框引發的強迫放大現象 */}
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+      </head>
+
       <div className="max-w-7xl mx-auto">
         
         {/* Top Title Bar */}
@@ -586,7 +591,7 @@ export default function CustomerPage() {
                             </div>
                             <div className="text-xs text-slate-600 font-bold mt-1 ml-0.5">{customer.facility_name || '無特定廠區'} {customer.facility_floor ? ` • ${customer.facility_floor}F` : ''}</div>
                           </div>
-                          {/* 🧠 補齊物件命名空間，通過型別檢查 */}
+                          {/* 🧠 補齊物件名稱，完全解除 Cannot find name 報錯 */}
                           {isAdmin && (
                             <div className="flex gap-1.5 text-xs shrink-0" onClick={(e) => e.stopPropagation()}>
                               <button onClick={() => handleOpenEditModal(customer)} className="text-amber-800 font-bold bg-amber-50 px-2 py-1 rounded border border-amber-300">編輯</button>
@@ -654,7 +659,7 @@ export default function CustomerPage() {
           </div>
         </div>
 
-        {/* 跨平台共用導航分頁列（僅在大螢幕顯示） */}
+        {/* 跨平台共用導航分頁列 */}
         {!loading && filteredCustomers.length > 0 && (
           <div className="hidden md:flex bg-white border border-slate-300 rounded-xl px-4 py-3.5 items-center justify-between text-slate-700 font-mono text-xs select-none gap-3 shadow-2xs mt-4">
             <div>
