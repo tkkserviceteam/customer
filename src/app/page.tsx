@@ -541,7 +541,7 @@ export default function CustomerPage() {
                                   <div><span className="text-slate-500 font-bold mr-2">公司地址:</span>{customer.address ? (
                                     <a href={`http://maps.google.com/?q=${encodeURIComponent(customer.address.split(/[\s\(\（]/)[0])}`} target="_blank" rel="noopener noreferrer" className="text-blue-700 font-bold hover:underline inline-flex items-center gap-1">
                                       {customer.address}
-                                      <span className="text-[10px] bg-purple-100 text-purple-800 border border-purple-300 px-1 rounded font-bold">地圖</span>
+                                      <span className="text-[10px] bg-green-100 text-green-800 border border-green-300 px-1 rounded font-bold">地圖</span>
                                     </a>
                                   ) : <span className="text-slate-400">未提供</span>}</div>
                                 </div>
@@ -631,7 +631,7 @@ export default function CustomerPage() {
                         {!isLeft && customer.phone ? <a href={`tel:${customer.phone}`} className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-center py-2 rounded-lg shadow-2xs"><span>總機分機</span></a> : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無總機</div>}
                         {!isLeft && customer.line_id ? <button onClick={() => setActiveLineId(customer.line_id)} className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-center py-2 rounded-lg shadow-2xs"><span>LINE</span></button> : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無 LINE</div>}
                         {customer.address ? (
-                          <a href={`http://maps.google.com/?q=${encodeURIComponent(customer.address.split(/[\s\(\環境]/)[0])}`} target="_blank" rel="noopener noreferrer" className="bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-300 text-slate-200 rounded-lg shadow-2xs text-center py-2"><span>導航</span></a>
+                          <a href={`http://maps.google.com/?q=${encodeURIComponent(customer.address.split(/[\s\(\環境]/)[0])}`} target="_blank" rel="noopener noreferrer" className="bg-green-50 hover:bg-green-100 text-green-800 border border-green-300 text-slate-200 rounded-lg shadow-2xs text-center py-2"><span>導航</span></a>
                         ) : <div className="bg-slate-100 text-slate-400 border border-slate-200 text-center py-2 rounded-lg flex items-center justify-center">無地址</div>}
                       </div>
                     </div>
