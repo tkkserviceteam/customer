@@ -71,7 +71,7 @@ export default function CustomerPage() {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const IDLE_TIMEOUT_DURATION = 10 * 60 * 1000;
 
-  // --- 2. 基礎底層函式宣告（優先權最高，確保隨叫隨到） ---
+  // --- 2. 函式宣告提升與 Scope 優化（確保 writeLog 與 fetch 隨叫隨到） ---
   const fetchCustomers = async () => {
     try {
       setLoading(true);
@@ -92,6 +92,16 @@ export default function CustomerPage() {
       setLogs(logRes || []);
     } catch (error) {
       console.error('撈取日誌失敗:', error);
+    }
+  };
+
+  const writeLog = async (actionType: string, customerName: string, details: string) => {
+    try {
+      const { error } = await supabase.from('customer_logs').insert([{ operator: operatorName || '訪客', action_type: actionType, customer_name: customerName, details: details }]);
+      if (error) throw error;
+      await fetchLogs();
+    } catch (error: any) {
+      alert(`日誌寫入失敗: ${error.message}`);
     }
   };
 
@@ -157,17 +167,6 @@ export default function CustomerPage() {
       alert(`密碼變更失敗：${error.message}`);
     } finally {
       setPwdUpdating(false);
-    }
-  };
-
-  // 🧠 核心位置修正：把 writeLog 拉到業務邏輯最上方，澈底消滅 TypeScript 的 Cannot find name 未定義錯誤
-  const writeLog = async (actionType: string, customerName: string, details: string) => {
-    try {
-      const { error } = await supabase.from('customer_logs').insert([{ operator: operatorName || '訪客', action_type: actionType, customer_name: customerName, details: details }]);
-      if (error) throw error;
-      await fetchLogs();
-    } catch (error: any) {
-      alert(`日誌寫入失敗: ${error.message}`);
     }
   };
 
@@ -404,7 +403,7 @@ export default function CustomerPage() {
 
   const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE) || 1;
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedCustomers = customers.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const paginatedCustomers = filteredCustomers.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   if (!isMounted) {
     return (
@@ -523,7 +522,7 @@ export default function CustomerPage() {
                             <td className="p-4 text-center space-x-2 whitespace-nowrap text-xs font-bold">
                               <button onClick={() => handleOpenEditModal(customer)} className="text-amber-700 hover:text-amber-600 transition-colors">編輯</button>
                               <span className="text-slate-300">|</span>
-                              <button onClick={() => handleDeleteCustomer(customer.id, customer.contact_name, customer.company_name)} className="text-red-600 hover:text-red-450 transition-colors">刪除</button>
+                              <button onClick={() => handleDeleteCustomer(customer.id, customer.contact_name, customer.company_name)} className="text-red-600 hover:text-red-400 transition-colors">刪除</button>
                             </td>
                           )}
                         </tr>
@@ -587,6 +586,7 @@ export default function CustomerPage() {
                             </div>
                             <div className="text-xs text-slate-600 font-bold mt-1 ml-0.5">{customer.facility_name || '無特定廠區'} {customer.facility_floor ? ` • ${customer.facility_floor}F` : ''}</div>
                           </div>
+                          {/* 🧠 補齊物件命名空間，通過型別檢查 */}
                           {isAdmin && (
                             <div className="flex gap-1.5 text-xs shrink-0" onClick={(e) => e.stopPropagation()}>
                               <button onClick={() => handleOpenEditModal(customer)} className="text-amber-800 font-bold bg-amber-50 px-2 py-1 rounded border border-amber-300">編輯</button>
@@ -654,7 +654,7 @@ export default function CustomerPage() {
           </div>
         </div>
 
-        {/* 跨平台共用導航分頁列 */}
+        {/* 跨平台共用導航分頁列（僅在大螢幕顯示） */}
         {!loading && filteredCustomers.length > 0 && (
           <div className="hidden md:flex bg-white border border-slate-300 rounded-xl px-4 py-3.5 items-center justify-between text-slate-700 font-mono text-xs select-none gap-3 shadow-2xs mt-4">
             <div>
@@ -749,7 +749,7 @@ export default function CustomerPage() {
             <h3 className="text-lg font-bold text-slate-900 mb-1 tracking-wide font-mono">LINE QR CODE</h3>
             <p className="text-xs text-blue-700 font-bold mb-4 font-mono">ID: <span className="select-all">{activeLineId}</span></p>
             <div className="bg-slate-50 p-3 rounded-lg inline-block mb-4 border border-slate-200">
-              <img src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent ImgUrlLink => `https://line.me/R/ti/p/~${activeLineId}`}`} alt="Line QR Code" width={180} height={180} className="mx-auto" />
+              <img src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`https://line.me/R/ti/p/~${activeLineId}`)}`} alt="Line QR Code" width={180} height={180} className="mx-auto" />
             </div>
             <p className="text-xs text-slate-400 mb-5">請使用手機 LINE 應用程式掃描</p>
             <button onClick={() => setActiveLineId(null)} className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-bold border border-slate-300 text-xs font-mono transition-colors">CLOSE</button>
