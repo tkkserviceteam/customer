@@ -106,7 +106,7 @@ export default function CustomerPage() {
   };
 
   // 🧠 智慧整合功能：單筆聯絡人資料轉 VCF (vCard 3.0) 格式並觸發下載
-const exportToVcf = (customer: any) => {
+const exportToVcf = async (customer: any) => {
     try {
       const orgName = customer.company_name || '';
       const deptName = customer.facility_name ? `${customer.facility_name}${customer.facility_floor ? ` ${customer.facility_floor}F` : ''}` : '';
@@ -122,26 +122,33 @@ const exportToVcf = (customer: any) => {
       ].filter(Boolean);
       
       const vcardString = '\uFEFF' + vcardRows.join('\r\n');
-      
-      // 🧠 關鍵修正：將 MIME Type 改為 application/octet-stream (強制當作二進位檔觸發下載)，
-      // 這是 iOS Safari 遇到 text/vcard 被鎖死時的「 bypass 萬用解」。
-      // 因為 .vcf 結尾已經定義了檔案格式，這個 MIME Type 可以確保 Safari 不會嘗試「開啟」該檔案而是觸發「下載並處理」。
-      const blob = new Blob([vcardString], { type: 'application/octet-stream' });
-      
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${customer.contact_name || '窗口'}.vcf`;
-      
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      const blob = new Blob([vcardString], { type: 'text/vcard' });
+      const file = new File([blob], `${customer.contact_name || '窗口'}.vcf`, { type: 'text/vcard' });
+
+      // 🧠 核心修正：直接呼叫 iOS 原生分享視窗
+      // 這個做法會強制 iOS 跳出「匯入聯絡人」選項，而不只是預覽
+      if (navigator.share && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: '匯入聯絡人',
+          text: `正在匯入 ${customer.contact_name} 的名片`
+        });
+      } else {
+        // 降級方案：如果是不支援的舊設備，維持原樣下載
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${customer.contact_name}.vcf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
     } catch (err: any) { 
-      alert('匯出失敗：' + err.message); 
+      console.error(err);
+      alert('匯出失敗，請確認手機設定是否允許分享檔案'); 
     }
   };
-
   const updateAuthState = (session: any) => {
     setIsAdmin(!!session);
     if (session?.user?.email) {
