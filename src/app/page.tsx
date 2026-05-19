@@ -108,14 +108,20 @@ export default function CustomerPage() {
   // 🧠 智慧整合功能：單筆聯絡人資料轉 VCF (vCard 3.0) 格式並觸發下載
 const exportToVcf = (customer: any) => {
   try {
-    const orgName = customer.company_name || '';
 
-    const vcardRows = [
+    const vcard = [
       'BEGIN:VCARD',
       'VERSION:3.0',
-      `FN;CHARSET=UTF-8:${customer.contact_name || ''}`,
-      `ORG;CHARSET=UTF-8:${orgName}`,
-      `TITLE;CHARSET=UTF-8:${customer.title || ''}`,
+
+      `FN:${customer.contact_name || ''}`,
+
+      customer.company_name
+        ? `ORG:${customer.company_name}`
+        : '',
+
+      customer.title
+        ? `TITLE:${customer.title}`
+        : '',
 
       customer.mobile
         ? `TEL;TYPE=CELL:${customer.mobile}`
@@ -123,7 +129,9 @@ const exportToVcf = (customer: any) => {
 
       customer.phone
         ? `TEL;TYPE=WORK:${customer.phone}${
-            customer.extension ? `#${customer.extension}` : ''
+            customer.extension
+              ? `#${customer.extension}`
+              : ''
           }`
         : '',
 
@@ -132,48 +140,63 @@ const exportToVcf = (customer: any) => {
         : '',
 
       'END:VCARD'
-    ].filter(Boolean);
 
-    const vcardContent =
-      '\uFEFF' + vcardRows.join('\r\n');
-
-    const blob = new Blob(
-      [vcardContent],
-      { type: 'text/vcard;charset=utf-8' }
-    );
-
-    const url = URL.createObjectURL(blob);
+    ]
+    .filter(Boolean)
+    .join('\r\n');
 
     const isIOS =
-      /iPad|iPhone|iPod/.test(navigator.userAgent);
+      /iPad|iPhone|iPod/.test(
+        navigator.userAgent
+      );
 
     // ✅ iOS 特殊處理
     if (isIOS) {
-      // 不使用 download
-      // 直接跳轉 blob URL
-      window.location.href = url;
 
-      setTimeout(() => {
-        URL.revokeObjectURL(url);
-      }, 3000);
+      const encoded =
+        encodeURIComponent(vcard);
+
+      const dataUri =
+        `data:text/vcard;charset=utf-8,${encoded}`;
+
+      // Safari 直接開啟
+      window.location.href = dataUri;
 
       return;
     }
 
     // ✅ Android / Desktop
-    const link = document.createElement('a');
+    const blob = new Blob(
+      ['\uFEFF' + vcard],
+      {
+        type:
+          'text/vcard;charset=utf-8'
+      }
+    );
+
+    const url =
+      URL.createObjectURL(blob);
+
+    const link =
+      document.createElement('a');
+
     link.href = url;
+
     link.download =
       `${customer.contact_name || '窗口'}.vcf`;
 
     document.body.appendChild(link);
+
     link.click();
+
     document.body.removeChild(link);
 
     URL.revokeObjectURL(url);
 
-  } catch (err: any) {
-    alert('匯出失敗');
+  } catch (err) {
+
+    alert('VCF 匯出失敗');
+
   }
 };
   const updateAuthState = (session: any) => {
